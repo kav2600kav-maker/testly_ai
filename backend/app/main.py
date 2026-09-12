@@ -1,6 +1,11 @@
 import os
 import uuid
 import logging
+import random
+import time
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 from typing import List, Optional
 from fastapi import FastAPI, BackgroundTasks, HTTPException, Body
@@ -8,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, HttpUrl
+
 
 from app import database
 from app.agents.planning_agent import PlanningAgent
@@ -19,6 +25,33 @@ from app.agents.report_agent import ReportAgent
 # Set up logs
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("testly_ai")
+
+# Load environment variables from .env file if present
+def load_env_file():
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    candidates = [
+        os.path.join(os.path.dirname(os.path.dirname(current_dir)), ".env"),
+        os.path.join(os.path.dirname(current_dir), ".env"),
+        os.path.join(current_dir, ".env")
+    ]
+    for env_path in candidates:
+        if os.path.exists(env_path):
+            try:
+                with open(env_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith("#") and "=" in line:
+                            k, v = line.split("=", 1)
+                            key = k.strip()
+                            val = v.strip().strip("'\"")
+                            if key and key not in os.environ:
+                                os.environ[key] = val
+                break
+            except Exception:
+                pass
+
+load_env_file()
+
 
 # Setup directories
 if os.environ.get("VERCEL"):
@@ -68,7 +101,7 @@ class ProfileUpdate(BaseModel):
 # Background pipeline execution
 def run_agent_pipeline(task_id: str, url: str, browser: str, testing_types: List[str]):
     profile = database.get_profile()
-    api_key = profile.get("gemini_api_key", "").strip() or None
+    api_key = profile.get("gemini_api_key", "").strip() or os.environ.get("GEMINI_API_KEY", "").strip() or None
     
     task_state = ACTIVE_TASKS[task_id]
     
@@ -230,3 +263,135 @@ def get_user_profile():
 def update_user_profile(profile: ProfileUpdate):
     update_dict = {k: v for k, v in profile.dict().items() if v is not None}
     return database.update_profile(update_dict)
+
+
+# =====================================================================
+# SMTP OTP PASSWORD RECOVERY SERVICE
+# =====================================================================
+
+SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", 587))
+SMTP_USER = os.environ.get("SMTP_USER", "")
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
+SMTP_SENDER_EMAIL = os.environ.get("SMTP_SENDER_EMAIL", os.environ.get("SMTP_USER", ""))
+SMTP_SENDER_NAME = os.environ.get("SMTP_SENDER_NAME", "Testly AI")
+
+
+# In-memory OTP storage: { email.lower(): { "otp": "123456", "expires_at": timestamp, "attempts": 0 } }
+ACTIVE_OTP_STORE = {}
+
+class SendOtpRequest(BaseModel):
+    email: str
+
+class VerifyOtpRequest(BaseModel):
+    email: str
+    otp: str
+
+def dispatch_smtp_email(to_email: str, otp_code: str):
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = f"Testly AI - Password Reset OTP Code: {otp_code}"
+    msg["From"] = f"{SMTP_SENDER_NAME} <{SMTP_SENDER_EMAIL}>"
+    msg["To"] = to_email
+
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f7f8fb; margin: 0; padding: 24px; }}
+        .card {{ max-width: 500px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #eaeef4; padding: 36px 30px; box-shadow: 0 10px 30px rgba(36, 2, 9, 0.06); }}
+        .badge {{ display: inline-block; width: 44px; height: 44px; background: #8e1432; border-radius: 12px; color: #ffffff; font-weight: bold; font-size: 22px; text-align: center; line-height: 44px; margin-bottom: 16px; }}
+        .title {{ color: #240209; font-size: 22px; font-weight: 700; margin: 0 0 8px; }}
+        .subtitle {{ color: #5c434a; font-size: 14px; margin: 0 0 24px; line-height: 1.5; }}
+        .otp-box {{ background: #fdf2f5; border: 2px dashed #bc355a; border-radius: 12px; padding: 20px 24px; text-align: center; margin: 24px 0; }}
+        .otp-code {{ font-size: 34px; font-weight: 800; letter-spacing: 8px; color: #8e1432; font-family: monospace; }}
+        .notice {{ font-size: 12.5px; color: #8c737a; line-height: 1.5; margin-top: 18px; }}
+        .footer {{ text-align: center; margin-top: 24px; font-size: 11.5px; color: #a09296; }}
+      </style>
+    </head>
+    <body>
+      <div class="card">
+        <div class="badge">T</div>
+        <h2 class="title">Password Reset Verification</h2>
+        <p class="subtitle">We received a request to reset your password for your Testly AI QA account. Enter the 6-digit verification code below:</p>
+        
+        <div class="otp-box">
+          <div class="otp-code">{otp_code}</div>
+        </div>
+
+        <p class="notice">
+          ⏱️ This OTP code is valid for <strong>10 minutes</strong>.<br>
+          🔒 For your security, do not share this code with anyone. If you did not request this, please disregard this email.
+        </p>
+      </div>
+      <div class="footer">
+        © 2026 Testly AI • Autonomous QA Intelligence Platform
+      </div>
+    </body>
+    </html>
+    """
+
+    plain_text = f"Your Testly AI password reset OTP is: {otp_code}\nThis code will expire in 10 minutes.\nDo not share this code with anyone."
+
+    msg.attach(MIMEText(plain_text, "plain"))
+    msg.attach(MIMEText(html_content, "html"))
+
+    server = smtplib.SMTP(SMTP_HOST, SMTP_PORT)
+    server.starttls()
+    server.login(SMTP_USER, SMTP_PASSWORD)
+    server.sendmail(SMTP_SENDER_EMAIL, to_email, msg.as_string())
+    server.quit()
+
+@app.post("/api/auth/send-smtp-otp")
+def api_send_smtp_otp(req: SendOtpRequest):
+    email = req.email.strip().lower()
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="Please provide a valid email address.")
+
+    otp_code = f"{random.randint(100000, 999999)}"
+    expires_at = time.time() + 600 # 10 minutes
+
+    try:
+        dispatch_smtp_email(email, otp_code)
+        ACTIVE_OTP_STORE[email] = {
+            "otp": otp_code,
+            "expires_at": expires_at,
+            "attempts": 0
+        }
+        logger.info(f"Dispatched SMTP OTP to {email}")
+        return {
+            "success": True,
+            "message": f"6-digit verification OTP dispatched via SMTP to {email}"
+        }
+    except Exception as e:
+        logger.error(f"Failed to dispatch SMTP email to {email}: {e}")
+        raise HTTPException(status_code=500, detail=f"SMTP Error: {str(e)}")
+
+@app.post("/api/auth/verify-smtp-otp")
+def api_verify_smtp_otp(req: VerifyOtpRequest):
+    email = req.email.strip().lower()
+    entered_otp = req.otp.strip().replace(" ", "")
+
+    record = ACTIVE_OTP_STORE.get(email)
+    if not record:
+        raise HTTPException(status_code=400, detail="No active OTP found for this email. Please request a new code.")
+
+    if time.time() > record["expires_at"]:
+        ACTIVE_OTP_STORE.pop(email, None)
+        raise HTTPException(status_code=400, detail="The OTP verification code has expired. Please request a new code.")
+
+    record["attempts"] += 1
+    if record["attempts"] > 5:
+        ACTIVE_OTP_STORE.pop(email, None)
+        raise HTTPException(status_code=400, detail="Too many incorrect OTP attempts. Please request a new code.")
+
+    if record["otp"] != entered_otp:
+        raise HTTPException(status_code=400, detail="Invalid OTP code. Please check your email and try again.")
+
+    return {
+        "success": True,
+        "valid": True,
+        "message": "OTP verification successful."
+    }
+

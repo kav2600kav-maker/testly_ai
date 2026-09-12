@@ -4,7 +4,7 @@ const DEFAULT_PROFILE = {
   name: "kavya",
   role: "Tester",
   avatar: "",
-  gemini_api_key: "",
+  gemini_api_key: import.meta.env.VITE_GEMINI_API_KEY || "",
   default_browser: "Chrome",
   screenshot_quality: "High",
   notifications_enabled: true

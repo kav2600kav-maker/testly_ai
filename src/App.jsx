@@ -1,6 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import AuthPage from './components/AuthPage';
+import {
+  getCurrentSession,
+  signOutUser,
+  subscribeToAuthChanges
+} from './services/authService';
 import {
   getStoredProfile,
   saveStoredProfile,
@@ -14,6 +20,12 @@ const API_BASE = import.meta.env.VITE_API_BASE || (import.meta.env.DEV ? 'http:/
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Supabase Authentication States
+  const [session, setSession] = useState(null);
+  const [authUser, setAuthUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [isGuestMode, setIsGuestMode] = useState(false);
   
   // Dashboard & History States
   const [history, setHistory] = useState([]);
@@ -56,6 +68,43 @@ export default function App() {
 
   const consoleEndRef = useRef(null);
 
+  // Check Supabase session & listen for auth state updates
+  useEffect(() => {
+    getCurrentSession().then(({ session }) => {
+      if (session) {
+        setSession(session);
+        setAuthUser(session.user);
+        if (session.user?.user_metadata?.full_name) {
+          setProfile(prev => ({
+            ...prev,
+            name: session.user.user_metadata.full_name,
+            role: session.user.user_metadata.role || prev.role
+          }));
+        }
+      }
+      setAuthLoading(false);
+    });
+
+    const subscription = subscribeToAuthChanges((event, newSession) => {
+      setSession(newSession);
+      setAuthUser(newSession?.user || null);
+      if (newSession?.user?.user_metadata?.full_name) {
+        setProfile(prev => ({
+          ...prev,
+          name: newSession.user.user_metadata.full_name,
+          role: newSession.user.user_metadata.role || prev.role
+        }));
+      }
+      if (event === 'SIGNED_OUT') {
+        setIsGuestMode(false);
+      }
+    });
+
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, []);
+
   // Check backend health & fetch initial data
   useEffect(() => {
     checkBackendHealth();
@@ -66,6 +115,14 @@ export default function App() {
     const healthInterval = setInterval(checkBackendHealth, 4000);
     return () => clearInterval(healthInterval);
   }, []);
+
+  const handleSignOut = async () => {
+    await signOutUser();
+    setSession(null);
+    setAuthUser(null);
+    setIsGuestMode(false);
+  };
+
 
   const checkBackendHealth = async () => {
     try {
@@ -446,10 +503,63 @@ export default function App() {
     doc.save(filename);
   };
 
+  // Loading state while verifying Supabase Auth session
+  if (authLoading) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'var(--bg-deep)',
+        color: 'var(--text-main)',
+        fontFamily: 'var(--font-body)'
+      }}>
+        <div style={{
+          width: 54,
+          height: 54,
+          borderRadius: 14,
+          background: 'linear-gradient(135deg, var(--wine-700), var(--wine-500))',
+          color: '#ffffff',
+          fontSize: 26,
+          fontWeight: 800,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          boxShadow: '0 8px 24px rgba(142, 20, 50, 0.25)',
+          marginBottom: 16
+        }}>T</div>
+        <h3 style={{ fontSize: 18, color: 'var(--wine-900)', marginBottom: 6 }}>Testly AI</h3>
+        <p style={{ fontSize: 13.5, color: 'var(--text-muted)' }}>Connecting to Supabase Auth...</p>
+      </div>
+    );
+  }
+
+  // Gate application behind Supabase Auth (or Guest/Demo mode)
+  if (!session && !isGuestMode) {
+    return (
+      <AuthPage
+        onLoginSuccess={(newSession, user) => {
+          setSession(newSession);
+          setAuthUser(user || newSession?.user);
+          if (user?.user_metadata?.full_name) {
+            setProfile(prev => ({
+              ...prev,
+              name: user.user_metadata.full_name,
+              role: user.user_metadata.role || prev.role
+            }));
+          }
+        }}
+        onContinueAsGuest={() => setIsGuestMode(true)}
+      />
+    );
+  }
 
   return (
 
     <div className="app-container">
+
       {/* Sidebar navigation */}
       <aside className="sidebar">
         <div className="logo-container">
@@ -502,9 +612,56 @@ export default function App() {
         </ul>
 
         <div className="sidebar-footer">
-          <div className="user-info">
-            <span className="user-name">{profile.name}</span>
-            <span className="user-role">{profile.role}</span>
+          <div className="user-info" style={{ width: '100%' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3px' }}>
+              <span className="user-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {authUser?.user_metadata?.full_name || profile.name}
+              </span>
+              {session ? (
+                <span style={{ fontSize: '10px', background: 'var(--primary)', color: '#fff', padding: '1px 6px', borderRadius: '4px', fontWeight: 'bold' }}>
+                  Supabase
+                </span>
+              ) : (
+                <span style={{ fontSize: '10px', background: 'rgba(255,255,255,0.18)', color: '#fff', padding: '1px 6px', borderRadius: '4px' }}>
+                  Demo
+                </span>
+              )}
+            </div>
+            <span className="user-role" style={{ fontSize: '11px', opacity: 0.8, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {authUser?.email || profile.role}
+            </span>
+
+            <button
+              id="btn-sidebar-signout"
+              onClick={handleSignOut}
+              style={{
+                marginTop: '10px',
+                width: '100%',
+                padding: '7px 10px',
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid rgba(255, 255, 255, 0.18)',
+                borderRadius: '8px',
+                color: '#ffffff',
+                fontSize: '11.5px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(220, 38, 38, 0.28)';
+                e.currentTarget.style.borderColor = 'rgba(220, 38, 38, 0.5)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.18)';
+              }}
+            >
+              <span>{session ? 'Sign Out ⎋' : 'Exit Demo / Sign In →'}</span>
+            </button>
           </div>
         </div>
       </aside>
@@ -1136,6 +1293,47 @@ export default function App() {
                     Save Configuration Settings
                   </button>
                 </form>
+              </div>
+
+              {/* Supabase Cloud Account Status */}
+              <div style={{
+                marginTop: '24px',
+                padding: '18px 20px',
+                background: 'var(--wine-50)',
+                border: '1px solid rgba(142, 20, 50, 0.15)',
+                borderRadius: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '12px'
+              }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                    <span style={{ fontSize: '14px', fontWeight: '700', color: 'var(--wine-900)' }}>Supabase Authentication</span>
+                    {session ? (
+                      <span className="badge passed" style={{ fontSize: '10px' }}>Active Session</span>
+                    ) : (
+                      <span className="badge pending" style={{ fontSize: '10px' }}>Guest Demo Mode</span>
+                    )}
+                  </div>
+                  <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', margin: 0 }}>
+                    {session
+                      ? `Connected as ${authUser?.email} • ID: ${authUser?.id?.slice(0, 12)}...`
+                      : 'Operating in Guest Demo Mode. Sign in with Supabase to persist cloud test audits.'}
+                  </p>
+                </div>
+
+                <div>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={handleSignOut}
+                    style={{ fontSize: '12.5px', padding: '8px 16px', cursor: 'pointer' }}
+                  >
+                    {session ? 'Sign Out of Supabase ⎋' : 'Sign In with Supabase →'}
+                  </button>
+                </div>
               </div>
             </div>
           )}

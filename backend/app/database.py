@@ -19,7 +19,7 @@ DEFAULT_DB = {
         "name": "QA Engineer",
         "role": "Lead Developer / Tester",
         "avatar": "",
-        "gemini_api_key": "",
+        "gemini_api_key": os.environ.get("GEMINI_API_KEY", ""),
         "default_browser": "Chrome",
         "screenshot_quality": "High",
         "notifications_enabled": True
