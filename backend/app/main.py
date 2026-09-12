@@ -269,15 +269,17 @@ def update_user_profile(profile: ProfileUpdate):
 # SMTP OTP PASSWORD RECOVERY SERVICE
 # =====================================================================
 
-SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
-SMTP_PORT = int(os.environ.get("SMTP_PORT", 587))
-SMTP_USER = os.environ.get("SMTP_USER", "")
-SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
-SMTP_SENDER_EMAIL = os.environ.get("SMTP_SENDER_EMAIL", os.environ.get("SMTP_USER", ""))
-SMTP_SENDER_NAME = os.environ.get("SMTP_SENDER_NAME", "Testly AI")
+SMTP_HOST = os.environ.get("SMTP_HOST") or "smtp.gmail.com"
+SMTP_PORT = int(os.environ.get("SMTP_PORT") or 587)
+SMTP_USER = os.environ.get("SMTP_USER") or "gowthamkaruppaiah6@gmail.com"
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD") or "lgtxygvdubivmogz"
+SMTP_SENDER_EMAIL = os.environ.get("SMTP_SENDER_EMAIL") or "gowthamkaruppaiah6@gmail.com"
+SMTP_SENDER_NAME = os.environ.get("SMTP_SENDER_NAME") or "Testly AI"
 
+SUPABASE_URL = os.environ.get("VITE_SUPABASE_URL") or "https://fsstvpegekjryniwtfru.supabase.co"
+SUPABASE_KEY = os.environ.get("VITE_SUPABASE_ANON_KEY") or "sb_publishable_8wuC61Y931d0AVvgTPnt_g_nd4tvPbR"
 
-# In-memory OTP storage: { email.lower(): { "otp": "123456", "expires_at": timestamp, "attempts": 0 } }
+# In-memory OTP cache: { email.lower(): { "otp": "123456", "expires_at": timestamp, "attempts": 0 } }
 ACTIVE_OTP_STORE = {}
 
 class SendOtpRequest(BaseModel):
@@ -337,13 +339,31 @@ def dispatch_smtp_email(to_email: str, otp_code: str):
     msg.attach(MIMEText(plain_text, "plain"))
     msg.attach(MIMEText(html_content, "html"))
 
-    server = smtplib.SMTP(SMTP_HOST, SMTP_PORT)
-    server.starttls()
-    server.login(SMTP_USER, SMTP_PASSWORD)
-    server.sendmail(SMTP_SENDER_EMAIL, to_email, msg.as_string())
-    server.quit()
+    # Attempt 1: Port 587 with STARTTLS
+    try:
+        server = smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=12)
+        server.starttls()
+        server.login(SMTP_USER, SMTP_PASSWORD)
+        server.sendmail(SMTP_SENDER_EMAIL, to_email, msg.as_string())
+        server.quit()
+        logger.info(f"Successfully sent OTP email to {to_email} via Port {SMTP_PORT} (STARTTLS)")
+        return
+    except Exception as e_tls:
+        logger.warning(f"SMTP Port {SMTP_PORT} failed ({e_tls}), trying Port 465 (SSL)...")
+
+    # Attempt 2: Port 465 with direct SSL (fallback for environments blocking port 587)
+    try:
+        server = smtplib.SMTP_SSL(SMTP_HOST, 465, timeout=12)
+        server.login(SMTP_USER, SMTP_PASSWORD)
+        server.sendmail(SMTP_SENDER_EMAIL, to_email, msg.as_string())
+        server.quit()
+        logger.info(f"Successfully sent OTP email to {to_email} via Port 465 (SSL)")
+    except Exception as e_ssl:
+        logger.error(f"Both Port 587 and 465 failed: {e_ssl}")
+        raise Exception(f"Failed to dispatch email via SMTP (STARTTLS & SSL both failed): {e_ssl}")
 
 @app.post("/api/auth/send-smtp-otp")
+@app.post("/auth/send-smtp-otp")
 def api_send_smtp_otp(req: SendOtpRequest):
     email = req.email.strip().lower()
     if not email or "@" not in email:
@@ -354,44 +374,106 @@ def api_send_smtp_otp(req: SendOtpRequest):
 
     try:
         dispatch_smtp_email(email, otp_code)
-        ACTIVE_OTP_STORE[email] = {
-            "otp": otp_code,
-            "expires_at": expires_at,
-            "attempts": 0
-        }
-        logger.info(f"Dispatched SMTP OTP to {email}")
-        return {
-            "success": True,
-            "message": f"6-digit verification OTP dispatched via SMTP to {email}"
-        }
     except Exception as e:
         logger.error(f"Failed to dispatch SMTP email to {email}: {e}")
         raise HTTPException(status_code=500, detail=f"SMTP Error: {str(e)}")
 
+    # Update in-memory cache
+    ACTIVE_OTP_STORE[email] = {
+        "otp": otp_code,
+        "expires_at": expires_at,
+        "attempts": 0
+    }
+
+    # Persist into Supabase password_reset_otps table (critical for stateless Vercel serverless)
+    try:
+        import urllib.request
+        import json
+        from datetime import datetime, timezone
+        
+        insert_url = f"{SUPABASE_URL}/rest/v1/password_reset_otps"
+        iso_expiry = datetime.now(timezone.utc).isoformat()
+        payload = json.dumps({
+            "email": email,
+            "otp_code": otp_code,
+            "expires_at": iso_expiry,
+            "verified": False,
+            "attempts": 0
+        }).encode("utf-8")
+        
+        req_sub = urllib.request.Request(
+            insert_url,
+            data=payload,
+            headers={
+                "Content-Type": "application/json",
+                "apikey": SUPABASE_KEY,
+                "Authorization": f"Bearer {SUPABASE_KEY}",
+                "Prefer": "return=minimal"
+            }
+        )
+        urllib.request.urlopen(req_sub, timeout=6)
+        logger.info(f"Persisted OTP for {email} into Supabase table")
+    except Exception as db_err:
+        logger.warning(f"Could not persist OTP to Supabase table: {db_err}")
+
+    logger.info(f"Dispatched SMTP OTP to {email}")
+    return {
+        "success": True,
+        "message": f"6-digit verification OTP dispatched via SMTP to {email}"
+    }
+
 @app.post("/api/auth/verify-smtp-otp")
+@app.post("/auth/verify-smtp-otp")
 def api_verify_smtp_otp(req: VerifyOtpRequest):
+
     email = req.email.strip().lower()
     entered_otp = req.otp.strip().replace(" ", "")
 
+    # 1. Check in-memory store
     record = ACTIVE_OTP_STORE.get(email)
-    if not record:
-        raise HTTPException(status_code=400, detail="No active OTP found for this email. Please request a new code.")
+    if record and time.time() <= record["expires_at"]:
+        record["attempts"] += 1
+        if record["attempts"] <= 5 and record["otp"] == entered_otp:
+            return {"success": True, "valid": True, "message": "OTP verification successful."}
 
-    if time.time() > record["expires_at"]:
-        ACTIVE_OTP_STORE.pop(email, None)
-        raise HTTPException(status_code=400, detail="The OTP verification code has expired. Please request a new code.")
+    # 2. Check Supabase database table (essential for stateless Vercel instances)
+    try:
+        import urllib.request
+        import json
+        
+        query_url = f"{SUPABASE_URL}/rest/v1/password_reset_otps?email=eq.{email}&otp_code=eq.{entered_otp}&verified=eq.false&order=created_at.desc&limit=1"
+        req_sub = urllib.request.Request(
+            query_url,
+            headers={
+                "apikey": SUPABASE_KEY,
+                "Authorization": f"Bearer {SUPABASE_KEY}"
+            }
+        )
+        with urllib.request.urlopen(req_sub, timeout=6) as response:
+            records = json.loads(response.read().decode())
+            if records and len(records) > 0:
+                rec = records[0]
+                # mark verified in table
+                try:
+                    patch_url = f"{SUPABASE_URL}/rest/v1/password_reset_otps?id=eq.{rec['id']}"
+                    patch_req = urllib.request.Request(
+                        patch_url,
+                        data=json.dumps({"verified": True}).encode("utf-8"),
+                        headers={
+                            "Content-Type": "application/json",
+                            "apikey": SUPABASE_KEY,
+                            "Authorization": f"Bearer {SUPABASE_KEY}",
+                            "Prefer": "return=minimal"
+                        },
+                        method="PATCH"
+                    )
+                    urllib.request.urlopen(patch_req, timeout=4)
+                except Exception:
+                    pass
+                return {"success": True, "valid": True, "message": "OTP verification successful."}
+    except Exception as e:
+        logger.error(f"Error checking Supabase OTP table: {e}")
 
-    record["attempts"] += 1
-    if record["attempts"] > 5:
-        ACTIVE_OTP_STORE.pop(email, None)
-        raise HTTPException(status_code=400, detail="Too many incorrect OTP attempts. Please request a new code.")
+    raise HTTPException(status_code=400, detail="Invalid or expired OTP code. Please check your email and try again.")
 
-    if record["otp"] != entered_otp:
-        raise HTTPException(status_code=400, detail="Invalid OTP code. Please check your email and try again.")
-
-    return {
-        "success": True,
-        "valid": True,
-        "message": "OTP verification successful."
-    }
 

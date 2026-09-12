@@ -175,14 +175,39 @@ export async function verifyPasswordResetOtp(email, otpToken) {
       }
     } catch (_) {}
 
-    if (smtpVerified || supabaseVerified) {
+    // 3. Directly check Supabase public.password_reset_otps table (handles stateless Vercel edge cases)
+    let tableVerified = false;
+    try {
+      const { data: records } = await supabase
+        .from('password_reset_otps')
+        .select('*')
+        .eq('email', trimmedEmail.toLowerCase())
+        .eq('otp_code', cleanedToken)
+        .eq('verified', false)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (records && records.length > 0) {
+        const record = records[0];
+        if (new Date(record.expires_at) > new Date()) {
+          tableVerified = true;
+          await supabase
+            .from('password_reset_otps')
+            .update({ verified: true })
+            .eq('id', record.id);
+        }
+      }
+    } catch (_) {}
+
+    if (smtpVerified || supabaseVerified || tableVerified) {
       return {
         success: true,
         user,
         session,
-        verifiedVia: smtpVerified ? 'smtp' : 'supabase'
+        verifiedVia: tableVerified ? 'supabase_table' : (smtpVerified ? 'smtp' : 'supabase')
       };
     }
+
 
     return {
       success: false,

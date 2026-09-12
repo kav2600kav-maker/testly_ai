@@ -141,24 +141,43 @@ export default function AuthPage({ onLoginSuccess, onContinueAsGuest }) {
       fullName: signUpName,
       role: signUpRole
     });
-    setLoading(false);
 
     if (!result.success) {
+      setLoading(false);
       setErrorMsg(result.error);
       return;
     }
 
-    if (result.requiresConfirmation) {
-      setSuccessMsg('Account created successfully! If email verification is enabled on your Supabase project, please check your inbox to confirm your email before logging in.');
-      setActiveTab('signin');
-      setSignInEmail(signUpEmail);
-    } else {
-      setSuccessMsg('Account created and verified! Launching your QA dashboard...');
+    // If session returned immediately, log in right away
+    if (result.session) {
+      setLoading(false);
+      setSuccessMsg('Account created successfully! Launching your QA dashboard...');
       if (onLoginSuccess) {
         onLoginSuccess(result.session, result.user);
       }
+      return;
+    }
+
+    // Auto-login immediately (works seamlessly when Confirm Email is disabled in Supabase)
+    const loginResult = await signInUser({
+      email: signUpEmail,
+      password: signUpPassword
+    });
+    setLoading(false);
+
+    if (loginResult.success) {
+      setSuccessMsg('Account created successfully! Welcome to Testly AI.');
+      if (onLoginSuccess) {
+        onLoginSuccess(loginResult.session, loginResult.user);
+      }
+    } else {
+      setSuccessMsg('Account created successfully! Please sign in with your credentials.');
+      setActiveTab('signin');
+      setSignInEmail(signUpEmail);
+      setSignInPassword(signUpPassword);
     }
   };
+
 
   // -------------------------------------------------------------
   // Forgot Password Step 1: Send OTP via SMTP
