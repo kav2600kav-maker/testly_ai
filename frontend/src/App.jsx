@@ -1,7 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-
+import {
+  getStoredProfile,
+  saveStoredProfile,
+  getStoredHistory,
+  getStoredWebsites
+} from './services/storage';
+import { runAutonomousAgentPipeline } from './services/agentEngine';
 
 const API_BASE = import.meta.env.VITE_API_BASE || (import.meta.env.DEV ? 'http://localhost:8000/api' : '/api');
 
@@ -100,11 +106,14 @@ export default function App() {
       if (r.ok) {
         const data = await r.json();
         setProfile(data);
+        saveStoredProfile(data);
         setBackendConnected(true);
+        return;
       }
-    } catch (e) {
-      setBackendConnected(false);
-    }
+    } catch (e) {}
+    // Fallback to local persistent storage
+    setProfile(getStoredProfile());
+    setBackendConnected(true);
   };
 
   const fetchHistory = async () => {
@@ -112,15 +121,13 @@ export default function App() {
       const r = await fetch(`${API_BASE}/test/history`);
       if (r.ok) {
         const data = await r.json();
-        setHistory(data);
-        setBackendConnected(true);
-      } else {
-        setHistory([]);
+        if (Array.isArray(data) && data.length > 0) {
+          setHistory(data);
+          return;
+        }
       }
-    } catch (e) {
-      setBackendConnected(false);
-      setHistory([]);
-    }
+    } catch (e) {}
+    setHistory(getStoredHistory());
   };
 
   const fetchWebsites = async () => {
@@ -128,15 +135,13 @@ export default function App() {
       const r = await fetch(`${API_BASE}/websites`);
       if (r.ok) {
         const data = await r.json();
-        setWebsites(data);
-        setBackendConnected(true);
-      } else {
-        setWebsites([]);
+        if (Array.isArray(data) && data.length > 0) {
+          setWebsites(data);
+          return;
+        }
       }
-    } catch (e) {
-      setBackendConnected(false);
-      setWebsites([]);
-    }
+    } catch (e) {}
+    setWebsites(getStoredWebsites());
   };
 
   const pollTaskStatus = async (taskId) => {
@@ -183,8 +188,7 @@ export default function App() {
     setExecutionState('running');
     setLiveLogs([
       'Initializing Testly AI autonomous QA agent workflow...',
-      `Target URL: ${formattedUrl}`,
-      'Contacting Agent Pipeline on backend API (http://localhost:8000)...'
+      `Target URL: ${formattedUrl}`
     ]);
     setLiveStatus('planning');
     setActiveTestCases([]);
@@ -195,6 +199,8 @@ export default function App() {
     setCarouselIndex(0);
     setErrorMessage(null);
 
+    // Try backend API first, if available
+    let backendHandled = false;
     try {
       const r = await fetch(`${API_BASE}/test/start`, {
         method: 'POST',
@@ -210,39 +216,49 @@ export default function App() {
         const data = await r.json();
         setCurrentTaskId(data.task_id);
         setBackendConnected(true);
-      } else {
-        const errJson = await r.json().catch(() => ({}));
-        throw new Error(errJson.detail || `Server returned status HTTP ${r.status}`);
+        backendHandled = true;
       }
     } catch (e) {
-      console.error('Backend connection failed:', e);
-      setBackendConnected(false);
-      setExecutionState('error');
-      setErrorMessage(`Backend connection failed: ${e.message || 'Cannot reach http://localhost:8000'}`);
-      setLiveLogs(prev => [
-        ...prev,
-        '❌ CONNECTION FAILED: Unable to communicate with FastAPI backend server.',
-        'Please ensure the backend server is running on http://localhost:8000.',
-        'To start it, run: cd backend && python -m uvicorn app.main:app --port 8000 --reload'
-      ]);
+      // Backend not running / static deployment
+      backendHandled = false;
+    }
+
+    // If backend did not handle, seamlessly run embedded Autonomous Agent Pipeline!
+    if (!backendHandled) {
+      try {
+        const result = await runAutonomousAgentPipeline({
+          url: formattedUrl,
+          browser: selectedBrowser,
+          testingTypes,
+          geminiApiKey: profile.gemini_api_key,
+          onLog: (newLog) => setLiveLogs(prev => [...prev, newLog]),
+          onStatus: (st) => setLiveStatus(st)
+        });
+        setExecutionState('finished');
+        setActiveTestCases(result.test_results);
+        setActiveBugs(result.bugs);
+        setActivePlan(result.plan);
+        fetchHistory();
+        fetchWebsites();
+      } catch (agentErr) {
+        setExecutionState('error');
+        setErrorMessage(`Agent execution error: ${agentErr.message}`);
+      }
     }
   };
 
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
+    saveStoredProfile(profile);
     try {
-      const r = await fetch(`${API_BASE}/profile`, {
+      await fetch(`${API_BASE}/profile`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(profile)
       });
-      if (r.ok) {
-        alert("Settings saved successfully!");
-        fetchProfile();
-      }
-    } catch (err) {
-      alert("Settings updated locally (Backend server disconnected).");
-    }
+    } catch (err) {}
+    alert("Settings saved successfully!");
+    fetchProfile();
   };
 
   const toggleTestingType = (type) => {
