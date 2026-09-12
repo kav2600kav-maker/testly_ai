@@ -1,5 +1,5 @@
-// Autonomous Agentic Testing Engine for Testly AI (Frontend Embedded Engine)
 import { addStoredHistoryEntry, addStoredWebsite } from './storage';
+import { saveTestRunToDatabase, saveTestedWebsiteToDatabase } from './historyService';
 
 // Helper sleep
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -176,10 +176,13 @@ export const runAutonomousAgentPipeline = async ({
   browser = "Chrome",
   testingTypes = ["Functional"],
   geminiApiKey = "",
+  userId = null,
   onLog = () => {},
   onStatus = () => {}
 }) => {
-  const taskId = "task-" + Math.random().toString(36).substring(2, 9);
+  const taskId = typeof crypto !== 'undefined' && crypto.randomUUID 
+    ? crypto.randomUUID() 
+    : ("task-" + Math.random().toString(36).substring(2, 9));
   const logs = [];
 
   const log = (msg) => {
@@ -304,15 +307,29 @@ export const runAutonomousAgentPipeline = async ({
     passed_count: passedCount,
     bugs_count: bugs.length,
     test_results: testResults,
-    bugs
+    bugs,
+    plan
   };
 
-  // Save to persistent localStorage
+  // Save to persistent localStorage cache
   addStoredHistoryEntry(runRecord);
   addStoredWebsite(url, {
     site_type: plan.site_type,
     technologies: plan.technologies,
     success_rate: successRate
+  });
+
+  // Persist directly to Supabase Database
+  saveTestRunToDatabase(runRecord, userId).catch(err => {
+    console.warn("Supabase database save background notice:", err);
+  });
+  saveTestedWebsiteToDatabase(url, {
+    title: plan.title || 'Audited Web App',
+    site_type: plan.site_type,
+    technologies: plan.technologies,
+    success_rate: successRate
+  }, userId).catch(err => {
+    console.warn("Supabase website save background notice:", err);
   });
 
   return {

@@ -151,6 +151,15 @@ export const getStoredHistory = () => {
   }
 };
 
+export const saveStoredHistory = (historyList) => {
+  try {
+    localStorage.setItem("testly_history", JSON.stringify(historyList));
+  } catch (e) {
+    console.warn("Could not save history to localStorage:", e);
+  }
+  return historyList;
+};
+
 export const addStoredHistoryEntry = (entry) => {
   try {
     const history = getStoredHistory();
@@ -170,6 +179,15 @@ export const getStoredWebsites = () => {
   } catch {
     return INITIAL_WEBSITES;
   }
+};
+
+export const saveStoredWebsites = (websitesList) => {
+  try {
+    localStorage.setItem("testly_websites", JSON.stringify(websitesList));
+  } catch (e) {
+    console.warn("Could not save websites to localStorage:", e);
+  }
+  return websitesList;
 };
 
 export const addStoredWebsite = (url, info) => {

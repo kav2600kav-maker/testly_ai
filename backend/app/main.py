@@ -78,6 +78,117 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Supabase Configuration & Persistent Database Helpers
+SUPABASE_URL = os.environ.get("VITE_SUPABASE_URL") or "https://fsstvpegekjryniwtfru.supabase.co"
+SUPABASE_KEY = os.environ.get("VITE_SUPABASE_ANON_KEY") or "sb_publishable_8wuC61Y931d0AVvgTPnt_g_nd4tvPbR"
+
+def save_test_history_to_supabase(history_entry: dict):
+    try:
+        import urllib.request
+        import json
+        
+        insert_url = f"{SUPABASE_URL}/rest/v1/test_history"
+        payload = {
+            "url": history_entry.get("url"),
+            "browser": history_entry.get("browser", "Chrome"),
+            "testing_types": history_entry.get("testing_types", ["Functional"]),
+            "status": history_entry.get("status", "completed"),
+            "success_rate": history_entry.get("success_rate", 100.0),
+            "test_cases_count": history_entry.get("test_cases_count", 0),
+            "passed_count": history_entry.get("passed_count", 0),
+            "bugs_count": history_entry.get("bugs_count", 0),
+            "test_results": history_entry.get("test_results", []),
+            "bugs": history_entry.get("bugs", []),
+            "plan": history_entry.get("plan", {}),
+            "report_url": history_entry.get("report_url"),
+            "timestamp": history_entry.get("timestamp"),
+            "completed_at": history_entry.get("completed_at")
+        }
+        data = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(
+            insert_url,
+            data=data,
+            headers={
+                "Content-Type": "application/json",
+                "apikey": SUPABASE_KEY,
+                "Authorization": f"Bearer {SUPABASE_KEY}",
+                "Prefer": "return=minimal"
+            }
+        )
+        urllib.request.urlopen(req, timeout=6)
+        logger.info(f"Persisted test run for {history_entry.get('url')} to Supabase test_history table")
+    except Exception as e:
+        logger.warning(f"Could not persist test run to Supabase: {e}")
+
+def save_tested_website_to_supabase(url: str, plan: dict):
+    try:
+        import urllib.request
+        import json
+        from datetime import datetime, timezone
+        
+        insert_url = f"{SUPABASE_URL}/rest/v1/tested_websites"
+        payload = {
+            "url": url,
+            "title": plan.get("title", "Audited Page"),
+            "site_type": plan.get("site_type", "Landing Page"),
+            "technologies": plan.get("technologies", ["HTML5", "CSS3"]),
+            "info": plan,
+            "last_tested": datetime.now(timezone.utc).isoformat()
+        }
+        data = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(
+            insert_url,
+            data=data,
+            headers={
+                "Content-Type": "application/json",
+                "apikey": SUPABASE_KEY,
+                "Authorization": f"Bearer {SUPABASE_KEY}",
+                "Prefer": "return=minimal"
+            }
+        )
+        urllib.request.urlopen(req, timeout=6)
+        logger.info(f"Persisted website {url} to Supabase tested_websites table")
+    except Exception as e:
+        logger.warning(f"Could not persist website to Supabase: {e}")
+
+def fetch_supabase_history():
+    try:
+        import urllib.request
+        import json
+        
+        query_url = f"{SUPABASE_URL}/rest/v1/test_history?select=*&order=timestamp.desc&limit=50"
+        req = urllib.request.Request(
+            query_url,
+            headers={
+                "apikey": SUPABASE_KEY,
+                "Authorization": f"Bearer {SUPABASE_KEY}"
+            }
+        )
+        with urllib.request.urlopen(req, timeout=6) as res:
+            return json.loads(res.read().decode("utf-8"))
+    except Exception as e:
+        logger.warning(f"Failed to fetch test_history from Supabase: {e}")
+        return None
+
+def fetch_supabase_websites():
+    try:
+        import urllib.request
+        import json
+        
+        query_url = f"{SUPABASE_URL}/rest/v1/tested_websites?select=*&order=last_tested.desc&limit=50"
+        req = urllib.request.Request(
+            query_url,
+            headers={
+                "apikey": SUPABASE_KEY,
+                "Authorization": f"Bearer {SUPABASE_KEY}"
+            }
+        )
+        with urllib.request.urlopen(req, timeout=6) as res:
+            return json.loads(res.read().decode("utf-8"))
+    except Exception as e:
+        logger.warning(f"Failed to fetch tested_websites from Supabase: {e}")
+        return None
+
 # Serve static assets
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
@@ -183,6 +294,9 @@ def run_agent_pipeline(task_id: str, url: str, browser: str, testing_types: List
             "site_type": plan["site_type"],
             "technologies": plan["technologies"]
         })
+        # Persist directly to Supabase persistent tables
+        save_test_history_to_supabase(history_entry)
+        save_tested_website_to_supabase(url, plan)
         
     except Exception as e:
         logger.error(f"Pipeline error for task {task_id}: {e}")
@@ -249,10 +363,16 @@ def get_test_status(task_id: str):
 
 @app.get("/api/test/history")
 def get_test_history():
+    supabase_data = fetch_supabase_history()
+    if supabase_data is not None and len(supabase_data) > 0:
+        return supabase_data
     return database.get_history()
 
 @app.get("/api/websites")
 def get_tested_websites():
+    supabase_data = fetch_supabase_websites()
+    if supabase_data is not None and len(supabase_data) > 0:
+        return supabase_data
     return database.get_websites()
 
 @app.get("/api/profile")
@@ -275,9 +395,6 @@ SMTP_USER = os.environ.get("SMTP_USER") or "gowthamkaruppaiah6@gmail.com"
 SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD") or "lgtxygvdubivmogz"
 SMTP_SENDER_EMAIL = os.environ.get("SMTP_SENDER_EMAIL") or "gowthamkaruppaiah6@gmail.com"
 SMTP_SENDER_NAME = os.environ.get("SMTP_SENDER_NAME") or "Testly AI"
-
-SUPABASE_URL = os.environ.get("VITE_SUPABASE_URL") or "https://fsstvpegekjryniwtfru.supabase.co"
-SUPABASE_KEY = os.environ.get("VITE_SUPABASE_ANON_KEY") or "sb_publishable_8wuC61Y931d0AVvgTPnt_g_nd4tvPbR"
 
 # In-memory OTP cache: { email.lower(): { "otp": "123456", "expires_at": timestamp, "attempts": 0 } }
 ACTIVE_OTP_STORE = {}

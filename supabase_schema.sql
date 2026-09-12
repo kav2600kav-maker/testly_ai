@@ -167,7 +167,7 @@ CREATE POLICY "Users can update their test history"
 DROP POLICY IF EXISTS "Users can delete their test history" ON public.test_history;
 CREATE POLICY "Users can delete their test history"
     ON public.test_history FOR DELETE
-    USING (auth.uid() = user_id);
+    USING (auth.uid() = user_id OR user_id IS NULL);
 
 -- ------------------------------------------------------------------------------
 -- TESTED WEBSITES POLICIES
@@ -185,7 +185,12 @@ CREATE POLICY "Users can insert tested websites"
 DROP POLICY IF EXISTS "Users can update tested websites" ON public.tested_websites;
 CREATE POLICY "Users can update tested websites"
     ON public.tested_websites FOR UPDATE
-    USING (auth.uid() = user_id);
+    USING (auth.uid() = user_id OR user_id IS NULL);
+
+DROP POLICY IF EXISTS "Users can delete tested websites" ON public.tested_websites;
+CREATE POLICY "Users can delete tested websites"
+    ON public.tested_websites FOR DELETE
+    USING (auth.uid() = user_id OR user_id IS NULL);
 
 -- ------------------------------------------------------------------------------
 -- OTP TABLE POLICIES (Service Role & Public Verification)

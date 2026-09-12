@@ -13,6 +13,13 @@ import {
   getStoredHistory,
   getStoredWebsites
 } from './services/storage';
+import {
+  fetchTestHistory,
+  saveTestRunToDatabase,
+  fetchTestedWebsites,
+  saveTestedWebsiteToDatabase,
+  deleteTestHistoryItem
+} from './services/historyService';
 import { runAutonomousAgentPipeline } from './services/agentEngine';
 
 const API_BASE = import.meta.env.VITE_API_BASE || (import.meta.env.DEV ? 'http://localhost:8000/api' : '/api');
@@ -109,12 +116,12 @@ export default function App() {
   useEffect(() => {
     checkBackendHealth();
     fetchProfile();
-    fetchHistory();
-    fetchWebsites();
+    fetchHistory(authUser?.id);
+    fetchWebsites(authUser?.id);
 
     const healthInterval = setInterval(checkBackendHealth, 4000);
     return () => clearInterval(healthInterval);
-  }, []);
+  }, [authUser]);
 
   const handleSignOut = async () => {
     await signOutUser();
@@ -173,7 +180,17 @@ export default function App() {
     setBackendConnected(true);
   };
 
-  const fetchHistory = async () => {
+  const fetchHistory = async (userId = authUser?.id) => {
+    try {
+      const data = await fetchTestHistory(userId);
+      if (Array.isArray(data)) {
+        setHistory(data);
+        return;
+      }
+    } catch (e) {
+      console.warn("fetchTestHistory failed, falling back to API/local:", e);
+    }
+
     try {
       const r = await fetch(`${API_BASE}/test/history`);
       if (r.ok) {
@@ -187,7 +204,17 @@ export default function App() {
     setHistory(getStoredHistory());
   };
 
-  const fetchWebsites = async () => {
+  const fetchWebsites = async (userId = authUser?.id) => {
+    try {
+      const data = await fetchTestedWebsites(userId);
+      if (Array.isArray(data)) {
+        setWebsites(data);
+        return;
+      }
+    } catch (e) {
+      console.warn("fetchTestedWebsites failed, falling back to API/local:", e);
+    }
+
     try {
       const r = await fetch(`${API_BASE}/websites`);
       if (r.ok) {
@@ -199,6 +226,14 @@ export default function App() {
       }
     } catch (e) {}
     setWebsites(getStoredWebsites());
+  };
+
+  const handleDeleteHistoryItem = async (id, e) => {
+    if (e) e.stopPropagation();
+    if (window.confirm("Are you sure you want to delete this test execution record from the Supabase database?")) {
+      await deleteTestHistoryItem(id);
+      await fetchHistory(authUser?.id);
+    }
   };
 
   const pollTaskStatus = async (taskId) => {
@@ -219,8 +254,36 @@ export default function App() {
           setActiveReportUrl(data.report_url);
           setActivePlan(data.plan || {});
           if (data.url) setTestUrl(data.url);
-          fetchHistory();
-          fetchWebsites();
+
+          // Save to persistent Supabase database
+          const passedCount = results.filter(t => t.status === 'PASSED' || t.status === 'passed').length;
+          const totalCases = results.length;
+          const successRate = totalCases > 0 ? +((passedCount / totalCases) * 100).toFixed(1) : 100.0;
+
+          await saveTestRunToDatabase({
+            url: data.url || testUrl,
+            browser: data.browser || selectedBrowser,
+            testing_types: data.testing_types || testingTypes,
+            status: 'completed',
+            success_rate: successRate,
+            test_cases_count: totalCases,
+            passed_count: passedCount,
+            bugs_count: (data.bugs || []).length,
+            test_results: results,
+            bugs: data.bugs || [],
+            plan: data.plan || {},
+            report_url: data.report_url
+          }, authUser?.id);
+
+          await saveTestedWebsiteToDatabase(data.url || testUrl, {
+            title: data.plan?.title || 'Audited Web App',
+            site_type: data.plan?.site_type || 'Modern Web App',
+            technologies: data.plan?.technologies || ['HTML5', 'CSS3'],
+            success_rate: successRate
+          }, authUser?.id);
+
+          fetchHistory(authUser?.id);
+          fetchWebsites(authUser?.id);
         } else if (data.status === 'failed') {
           setExecutionState('error');
           setErrorMessage(data.error || "The test execution pipeline encountered a fatal error.");
@@ -288,6 +351,7 @@ export default function App() {
           browser: selectedBrowser,
           testingTypes,
           geminiApiKey: profile.gemini_api_key,
+          userId: authUser?.id,
           onLog: (newLog) => setLiveLogs(prev => [...prev, newLog]),
           onStatus: (st) => setLiveStatus(st)
         });
@@ -295,8 +359,8 @@ export default function App() {
         setActiveTestCases(result.test_results);
         setActiveBugs(result.bugs);
         setActivePlan(result.plan);
-        fetchHistory();
-        fetchWebsites();
+        await fetchHistory(authUser?.id);
+        await fetchWebsites(authUser?.id);
       } catch (agentErr) {
         setExecutionState('error');
         setErrorMessage(`Agent execution error: ${agentErr.message}`);
@@ -1089,7 +1153,21 @@ export default function App() {
           {/* TAB 3: HISTORY LOGS */}
           {activeTab === 'history' && (
             <div className="card-panel glow-purple" style={{animation: 'fadeInUp 0.3s'}}>
-              <h3 className="dashboard-panel-title">Audit History Log</h3>
+              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px'}}>
+                <h3 className="dashboard-panel-title" style={{margin: 0}}>Audit History Log</h3>
+                <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                  <span className="badge passed" style={{fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px'}}>
+                    ☁️ Supabase Cloud DB
+                  </span>
+                  <button
+                    className="btn-secondary"
+                    style={{padding: '4px 10px', fontSize: '11px'}}
+                    onClick={() => fetchHistory(authUser?.id)}
+                  >
+                    🔄 Refresh
+                  </button>
+                </div>
+              </div>
               <div className="data-table-wrapper">
                 <table className="data-table">
                   <thead>
@@ -1099,7 +1177,7 @@ export default function App() {
                       <th>Success rate</th>
                       <th>Bugs Count</th>
                       <th>Completion Date</th>
-                      <th>Details</th>
+                      <th>Details & Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1138,6 +1216,14 @@ export default function App() {
                             >
                               Download PDF
                             </button>
+                            <button 
+                              className="btn-secondary" 
+                              style={{padding: '6px 10px', fontSize: '12px', color: '#f43f5e', borderColor: 'rgba(244, 63, 94, 0.4)'}}
+                              onClick={(e) => handleDeleteHistoryItem(h.id, e)}
+                              title="Delete permanently from Supabase database"
+                            >
+                              🗑️
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -1158,7 +1244,21 @@ export default function App() {
           {/* TAB 4: WEBSITES INFO */}
           {activeTab === 'websites' && (
             <div className="card-panel glow-purple" style={{animation: 'fadeInUp 0.3s'}}>
-              <h3 className="dashboard-panel-title">Website Crawl Details</h3>
+              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px'}}>
+                <h3 className="dashboard-panel-title" style={{margin: 0}}>Website Crawl Details</h3>
+                <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                  <span className="badge passed" style={{fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px'}}>
+                    ☁️ Supabase Cloud DB
+                  </span>
+                  <button
+                    className="btn-secondary"
+                    style={{padding: '4px 10px', fontSize: '11px'}}
+                    onClick={() => fetchWebsites(authUser?.id)}
+                  >
+                    🔄 Refresh
+                  </button>
+                </div>
+              </div>
               <div className="data-table-wrapper">
                 <table className="data-table">
                   <thead>
@@ -1171,25 +1271,32 @@ export default function App() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredWebsites.map((web, idx) => (
-                      <tr key={idx}>
-                        <td style={{fontWeight: '600', color: 'var(--secondary)'}}>{web.url}</td>
-                        <td>{web.info?.title || 'Unknown Title'}</td>
-                        <td>{web.info?.site_type || 'Landing Page'}</td>
-                        <td>
-                          <div style={{display: 'flex', gap: '6px'}}>
-                            {web.info?.technologies && web.info.technologies.length > 0 ? (
-                              web.info.technologies.map(t => (
-                                <span key={t} className="badge pending" style={{fontSize: '10px', padding: '2px 8px'}}>{t}</span>
-                              ))
-                            ) : (
-                              <span className="badge pending" style={{fontSize: '10px', padding: '2px 8px'}}>HTML5 / CSS3</span>
-                            )}
-                          </div>
-                        </td>
-                        <td>{new Date(web.last_tested).toLocaleString()}</td>
-                      </tr>
-                    ))}
+                    {filteredWebsites.map((web, idx) => {
+                      const techList = web.technologies || web.info?.technologies || ['HTML5', 'CSS3'];
+                      const title = web.title || web.info?.title || 'Audited Web App';
+                      const siteType = web.site_type || web.info?.site_type || 'Landing Page';
+                      const lastTested = web.last_tested || web.timestamp || new Date().toISOString();
+
+                      return (
+                        <tr key={web.id || idx}>
+                          <td style={{fontWeight: '600', color: 'var(--secondary)'}}>{web.url}</td>
+                          <td>{title}</td>
+                          <td>{siteType}</td>
+                          <td>
+                            <div style={{display: 'flex', gap: '6px', flexWrap: 'wrap'}}>
+                              {Array.isArray(techList) && techList.length > 0 ? (
+                                techList.map(t => (
+                                  <span key={t} className="badge pending" style={{fontSize: '10px', padding: '2px 8px'}}>{t}</span>
+                                ))
+                              ) : (
+                                <span className="badge pending" style={{fontSize: '10px', padding: '2px 8px'}}>HTML5 / CSS3</span>
+                              )}
+                            </div>
+                          </td>
+                          <td>{new Date(lastTested).toLocaleString()}</td>
+                        </tr>
+                      );
+                    })}
                     {filteredWebsites.length === 0 && (
                       <tr>
                         <td colSpan="5" style={{textAlign: 'center', color: 'var(--text-muted)', padding: '24px'}}>
