@@ -440,12 +440,12 @@ def dispatch_smtp_email(to_email: str, otp_code: str):
         </div>
 
         <p class="notice">
-          ⏱️ This OTP code is valid for <strong>10 minutes</strong>.<br>
-          🔒 For your security, do not share this code with anyone. If you did not request this, please disregard this email.
+          This OTP code is valid for <strong>10 minutes</strong>.<br>
+          For your security, do not share this code with anyone. If you did not request this, please disregard this email.
         </p>
       </div>
       <div class="footer">
-        © 2026 Testly AI • Autonomous QA Intelligence Platform
+        &copy; 2026 Testly AI • Autonomous QA Intelligence Platform
       </div>
     </body>
     </html>

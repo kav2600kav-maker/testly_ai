@@ -220,7 +220,7 @@ class ExecutionAgent:
         
         # URL Bar
         draw.rectangle([(100, 16), (width - 30, 54)], fill=(34, 42, 58), outline=(50, 60, 82))
-        draw.text((120, 27), f"🔒 {url}", fill=(210, 220, 240))
+        draw.text((120, 27), f"[SECURE] {url}", fill=(210, 220, 240))
         
         # Header banner
         draw.rectangle([(0, 70), (width, 140)], fill=(18, 24, 38))
@@ -230,11 +230,11 @@ class ExecutionAgent:
         # Status Card
         if status == "PASSED":
             draw.rectangle([(40, 160), (width - 40, 230)], fill=(6, 78, 59), outline=(16, 185, 129), width=2)
-            draw.text((60, 180), f"✓ {tc_id}: {tc_name}", fill=(255, 255, 255))
+            draw.text((60, 180), f"[PASS] {tc_id}: {tc_name}", fill=(255, 255, 255))
             draw.text((60, 204), "Status: PASSED — All validation assertions satisfied without anomalies.", fill=(167, 243, 208))
         else:
             draw.rectangle([(40, 160), (width - 40, 245)], fill=(127, 29, 29), outline=(239, 68, 68), width=2)
-            draw.text((60, 175), f"✗ {tc_id}: {tc_name}", fill=(255, 255, 255))
+            draw.text((60, 175), f"[FAIL] {tc_id}: {tc_name}", fill=(255, 255, 255))
             draw.text((60, 200), "Status: FAILED — Discrepancy detected during validation.", fill=(254, 202, 202))
             if error_msg:
                 draw.text((60, 222), f"Failure Detail: {error_msg[:90]}", fill=(254, 202, 202))

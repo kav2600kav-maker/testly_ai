@@ -7,6 +7,22 @@ import {
   verifyPasswordResetOtp,
   updateUserPassword
 } from '../services/authService';
+import {
+  IconMail,
+  IconLock,
+  IconEye,
+  IconEyeOff,
+  IconUser,
+  IconBriefcase,
+  IconKey,
+  IconZap,
+  IconCheck,
+  IconAlertTriangle,
+  IconInfo,
+  IconRefresh,
+  IconArrowRight,
+  IconArrowLeft
+} from './Icons';
 
 export default function AuthPage({ onLoginSuccess, onContinueAsGuest }) {
   // Navigation: 'signin' | 'signup' | 'forgot'
@@ -371,21 +387,21 @@ export default function AuthPage({ onLoginSuccess, onContinueAsGuest }) {
         {/* Global Feedback Banners */}
         {errorMsg && (
           <div className="auth-alert auth-alert-error" role="alert">
-            <span className="auth-alert-icon">⚠️</span>
+            <span className="auth-alert-icon"><IconAlertTriangle size={16} /></span>
             <span>{errorMsg}</span>
           </div>
         )}
 
         {successMsg && (
           <div className="auth-alert auth-alert-success" role="status">
-            <span className="auth-alert-icon">✓</span>
+            <span className="auth-alert-icon"><IconCheck size={16} /></span>
             <span>{successMsg}</span>
           </div>
         )}
 
         {infoMsg && (
           <div className="auth-alert auth-alert-info">
-            <span className="auth-alert-icon">ℹ️</span>
+            <span className="auth-alert-icon"><IconInfo size={16} /></span>
             <span>{infoMsg}</span>
           </div>
         )}
@@ -398,7 +414,7 @@ export default function AuthPage({ onLoginSuccess, onContinueAsGuest }) {
             <div className="auth-form-group">
               <label className="auth-label" htmlFor="signin-email">Email Address</label>
               <div className="auth-input-wrapper">
-                <span className="auth-input-icon">✉️</span>
+                <span className="auth-input-icon"><IconMail size={15} /></span>
                 <input
                   id="signin-email"
                   type="email"
@@ -428,7 +444,7 @@ export default function AuthPage({ onLoginSuccess, onContinueAsGuest }) {
                 </button>
               </div>
               <div className="auth-input-wrapper">
-                <span className="auth-input-icon">🔒</span>
+                <span className="auth-input-icon"><IconLock size={15} /></span>
                 <input
                   id="signin-password"
                   type={showSignInPassword ? 'text' : 'password'}
@@ -445,7 +461,7 @@ export default function AuthPage({ onLoginSuccess, onContinueAsGuest }) {
                   onClick={() => setShowSignInPassword(!showSignInPassword)}
                   aria-label={showSignInPassword ? 'Hide password' : 'Show password'}
                 >
-                  {showSignInPassword ? '🙈' : '👁️'}
+                  {showSignInPassword ? <IconEyeOff size={16} /> : <IconEye size={16} />}
                 </button>
               </div>
             </div>
@@ -462,7 +478,10 @@ export default function AuthPage({ onLoginSuccess, onContinueAsGuest }) {
                   <span>Signing in...</span>
                 </>
               ) : (
-                <span>Sign In to QA Hub →</span>
+                <>
+                  <span>Sign In to QA Hub</span>
+                  <IconArrowRight size={16} />
+                </>
               )}
             </button>
 
@@ -476,7 +495,8 @@ export default function AuthPage({ onLoginSuccess, onContinueAsGuest }) {
               className="auth-guest-btn"
               onClick={onContinueAsGuest}
             >
-              <span>⚡ Continue as Guest (Demo Mode)</span>
+              <IconZap size={15} />
+              <span>Continue as Guest (Demo Mode)</span>
             </button>
           </form>
         )}
@@ -489,7 +509,7 @@ export default function AuthPage({ onLoginSuccess, onContinueAsGuest }) {
             <div className="auth-form-group">
               <label className="auth-label" htmlFor="signup-name">Full Name</label>
               <div className="auth-input-wrapper">
-                <span className="auth-input-icon">👤</span>
+                <span className="auth-input-icon"><IconUser size={15} /></span>
                 <input
                   id="signup-name"
                   type="text"
@@ -505,7 +525,7 @@ export default function AuthPage({ onLoginSuccess, onContinueAsGuest }) {
             <div className="auth-form-group">
               <label className="auth-label" htmlFor="signup-email">Work Email</label>
               <div className="auth-input-wrapper">
-                <span className="auth-input-icon">✉️</span>
+                <span className="auth-input-icon"><IconMail size={15} /></span>
                 <input
                   id="signup-email"
                   type="email"
@@ -522,7 +542,7 @@ export default function AuthPage({ onLoginSuccess, onContinueAsGuest }) {
             <div className="auth-form-group">
               <label className="auth-label" htmlFor="signup-role">QA Role / Position</label>
               <div className="auth-input-wrapper">
-                <span className="auth-input-icon">💼</span>
+                <span className="auth-input-icon"><IconBriefcase size={15} /></span>
                 <select
                   id="signup-role"
                   className="auth-input"
@@ -542,7 +562,7 @@ export default function AuthPage({ onLoginSuccess, onContinueAsGuest }) {
             <div className="auth-form-group">
               <label className="auth-label" htmlFor="signup-password">Password</label>
               <div className="auth-input-wrapper">
-                <span className="auth-input-icon">🔒</span>
+                <span className="auth-input-icon"><IconLock size={15} /></span>
                 <input
                   id="signup-password"
                   type={showSignUpPassword ? 'text' : 'password'}
@@ -558,7 +578,7 @@ export default function AuthPage({ onLoginSuccess, onContinueAsGuest }) {
                   onClick={() => setShowSignUpPassword(!showSignUpPassword)}
                   aria-label={showSignUpPassword ? 'Hide password' : 'Show password'}
                 >
-                  {showSignUpPassword ? '🙈' : '👁️'}
+                  {showSignUpPassword ? <IconEyeOff size={16} /> : <IconEye size={16} />}
                 </button>
               </div>
 
@@ -583,7 +603,7 @@ export default function AuthPage({ onLoginSuccess, onContinueAsGuest }) {
             <div className="auth-form-group">
               <label className="auth-label" htmlFor="signup-confirm-password">Confirm Password</label>
               <div className="auth-input-wrapper">
-                <span className="auth-input-icon">🔐</span>
+                <span className="auth-input-icon"><IconKey size={15} /></span>
                 <input
                   id="signup-confirm-password"
                   type={showSignUpPassword ? 'text' : 'password'}
@@ -608,7 +628,10 @@ export default function AuthPage({ onLoginSuccess, onContinueAsGuest }) {
                   <span>Creating account...</span>
                 </>
               ) : (
-                <span>Register Account →</span>
+                <>
+                  <span>Register Account</span>
+                  <IconArrowRight size={16} />
+                </>
               )}
             </button>
           </form>
@@ -623,12 +646,12 @@ export default function AuthPage({ onLoginSuccess, onContinueAsGuest }) {
             {forgotStep < 4 && (
               <div className="forgot-steps-nav">
                 <div className={`step-indicator ${forgotStep >= 1 ? (forgotStep > 1 ? 'completed' : 'active') : ''}`}>
-                  <span className="step-circle">{forgotStep > 1 ? '✓' : '1'}</span>
+                  <span className="step-circle">{forgotStep > 1 ? <IconCheck size={12} /> : '1'}</span>
                   <span>Email</span>
                 </div>
                 <div className="step-divider-line"></div>
                 <div className={`step-indicator ${forgotStep >= 2 ? (forgotStep > 2 ? 'completed' : 'active') : ''}`}>
-                  <span className="step-circle">{forgotStep > 2 ? '✓' : '2'}</span>
+                  <span className="step-circle">{forgotStep > 2 ? <IconCheck size={12} /> : '2'}</span>
                   <span>Enter OTP</span>
                 </div>
                 <div className="step-divider-line"></div>
@@ -654,7 +677,7 @@ export default function AuthPage({ onLoginSuccess, onContinueAsGuest }) {
                 <div className="auth-form-group">
                   <label className="auth-label" htmlFor="forgot-email">Account Email Address</label>
                   <div className="auth-input-wrapper">
-                    <span className="auth-input-icon">✉️</span>
+                    <span className="auth-input-icon"><IconMail size={15} /></span>
                     <input
                       id="forgot-email"
                       type="email"
@@ -679,7 +702,10 @@ export default function AuthPage({ onLoginSuccess, onContinueAsGuest }) {
                       <span>Dispatching OTP...</span>
                     </>
                   ) : (
-                    <span>Send Verification OTP Code →</span>
+                    <>
+                      <span>Send Verification OTP Code</span>
+                      <IconArrowRight size={16} />
+                    </>
                   )}
                 </button>
 
@@ -688,8 +714,10 @@ export default function AuthPage({ onLoginSuccess, onContinueAsGuest }) {
                     type="button"
                     className="auth-link"
                     onClick={() => setActiveTab('signin')}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
                   >
-                    ← Back to Sign In
+                    <IconArrowLeft size={13} />
+                    <span>Back to Sign In</span>
                   </button>
                 </div>
               </form>
@@ -735,8 +763,10 @@ export default function AuthPage({ onLoginSuccess, onContinueAsGuest }) {
                         className="otp-resend-btn"
                         onClick={handleSendOtp}
                         disabled={loading}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
                       >
-                        🔄 Resend OTP Code
+                        <IconRefresh size={13} />
+                        <span>Resend OTP Code</span>
                       </button>
                     )}
                   </div>
@@ -754,7 +784,10 @@ export default function AuthPage({ onLoginSuccess, onContinueAsGuest }) {
                       <span>Verifying OTP...</span>
                     </>
                   ) : (
-                    <span>Verify Code & Continue →</span>
+                    <>
+                      <span>Verify Code & Continue</span>
+                      <IconArrowRight size={16} />
+                    </>
                   )}
                 </button>
 
@@ -763,8 +796,10 @@ export default function AuthPage({ onLoginSuccess, onContinueAsGuest }) {
                     type="button"
                     className="auth-link"
                     onClick={() => setForgotStep(1)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
                   >
-                    ← Change Email
+                    <IconArrowLeft size={13} />
+                    <span>Change Email</span>
                   </button>
                   <button
                     type="button"
@@ -792,7 +827,7 @@ export default function AuthPage({ onLoginSuccess, onContinueAsGuest }) {
                 <div className="auth-form-group">
                   <label className="auth-label" htmlFor="new-password">New Password</label>
                   <div className="auth-input-wrapper">
-                    <span className="auth-input-icon">🔒</span>
+                    <span className="auth-input-icon"><IconLock size={15} /></span>
                     <input
                       id="new-password"
                       type={showNewPassword ? 'text' : 'password'}
@@ -808,7 +843,7 @@ export default function AuthPage({ onLoginSuccess, onContinueAsGuest }) {
                       onClick={() => setShowNewPassword(!showNewPassword)}
                       aria-label={showNewPassword ? 'Hide password' : 'Show password'}
                     >
-                      {showNewPassword ? '🙈' : '👁️'}
+                      {showNewPassword ? <IconEyeOff size={16} /> : <IconEye size={16} />}
                     </button>
                   </div>
 
@@ -833,7 +868,7 @@ export default function AuthPage({ onLoginSuccess, onContinueAsGuest }) {
                 <div className="auth-form-group">
                   <label className="auth-label" htmlFor="confirm-new-password">Confirm New Password</label>
                   <div className="auth-input-wrapper">
-                    <span className="auth-input-icon">🔐</span>
+                    <span className="auth-input-icon"><IconKey size={15} /></span>
                     <input
                       id="confirm-new-password"
                       type={showNewPassword ? 'text' : 'password'}
@@ -858,7 +893,10 @@ export default function AuthPage({ onLoginSuccess, onContinueAsGuest }) {
                       <span>Updating Password...</span>
                     </>
                   ) : (
-                    <span>Save New Password & Finish →</span>
+                    <>
+                      <span>Save New Password & Finish</span>
+                      <IconArrowRight size={16} />
+                    </>
                   )}
                 </button>
               </form>
@@ -867,8 +905,10 @@ export default function AuthPage({ onLoginSuccess, onContinueAsGuest }) {
             {/* STEP 4: Success State */}
             {forgotStep === 4 && (
               <div className="auth-success-state">
-                <div className="success-check-icon">✓</div>
-                <h3 className="auth-success-title">Password Reset Complete!</h3>
+                <div className="success-check-icon">
+                  <IconCheck size={32} />
+                </div>
+                <h3 className="auth-success-title">Password Reset Complete</h3>
                 <p className="auth-success-desc">
                   Your password has been successfully updated in Supabase. You can now sign in to Testly AI using your new password.
                 </p>
@@ -883,8 +923,10 @@ export default function AuthPage({ onLoginSuccess, onContinueAsGuest }) {
                     setSignInEmail(forgotEmail);
                     setSignInPassword('');
                   }}
+                  style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
                 >
-                  Proceed to Sign In →
+                  <span>Proceed to Sign In</span>
+                  <IconArrowRight size={16} />
                 </button>
               </div>
             )}

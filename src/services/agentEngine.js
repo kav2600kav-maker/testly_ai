@@ -254,9 +254,9 @@ export const runAutonomousAgentPipeline = async ({
     testResults.push(result);
     if (!isPassing) {
       failedRuns.push(result);
-      log(`[Execution Agent] ⚠️ ${tc.id} flagged with warnings: ${errorMessage}`);
+      log(`[Execution Agent] [WARN] ${tc.id} flagged with warnings: ${errorMessage}`);
     } else {
-      log(`[Execution Agent] ✓ ${tc.id} passed (${duration}s)`);
+      log(`[Execution Agent] [PASS] ${tc.id} passed (${duration}s)`);
     }
   }
 

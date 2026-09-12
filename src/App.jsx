@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import AuthPage from './components/AuthPage';
@@ -21,6 +21,31 @@ import {
   deleteTestHistoryItem
 } from './services/historyService';
 import { runAutonomousAgentPipeline } from './services/agentEngine';
+import {
+  IconDashboard,
+  IconPlay,
+  IconHistory,
+  IconGlobe,
+  IconSettings,
+  IconSearch,
+  IconLogOut,
+  IconLogIn,
+  IconZap,
+  IconClose,
+  IconArrowRight,
+  IconArrowLeft,
+  IconShield,
+  IconFileText,
+  IconDownload,
+  IconCheck,
+  IconAlertTriangle,
+  IconRefresh,
+  IconTrash,
+  IconCloud,
+  IconBell,
+  IconShieldCheck,
+  IconCpu
+} from './components/Icons';
 
 const API_BASE = import.meta.env.VITE_API_BASE || (import.meta.env.DEV ? 'http://localhost:8000/api' : '/api');
 
@@ -151,19 +176,6 @@ export default function App() {
     }
   }, [liveLogs]);
 
-  // Polling helper for active task
-  useEffect(() => {
-    let intervalId = null;
-    if (executionState === 'running' && currentTaskId) {
-      intervalId = setInterval(() => {
-        pollTaskStatus(currentTaskId);
-      }, 1200);
-    }
-    return () => {
-      if (intervalId) clearInterval(intervalId);
-    };
-  }, [executionState, currentTaskId]);
-
   const fetchProfile = async () => {
     try {
       const r = await fetch(`${API_BASE}/profile`);
@@ -174,7 +186,7 @@ export default function App() {
         setBackendConnected(true);
         return;
       }
-    } catch (e) {}
+    } catch {}
     // Fallback to local persistent storage
     setProfile(getStoredProfile());
     setBackendConnected(true);
@@ -200,7 +212,7 @@ export default function App() {
           return;
         }
       }
-    } catch (e) {}
+    } catch {}
     setHistory(getStoredHistory());
   };
 
@@ -224,7 +236,7 @@ export default function App() {
           return;
         }
       }
-    } catch (e) {}
+    } catch {}
     setWebsites(getStoredWebsites());
   };
 
@@ -236,7 +248,7 @@ export default function App() {
     }
   };
 
-  const pollTaskStatus = async (taskId) => {
+  const pollTaskStatus = useCallback(async (taskId) => {
     try {
       const r = await fetch(`${API_BASE}/test/status/${taskId}`);
       if (r.ok) {
@@ -292,7 +304,20 @@ export default function App() {
     } catch (e) {
       console.error("Polling error: ", e);
     }
-  };
+  }, [authUser?.id, selectedBrowser, testUrl, testingTypes]);
+
+  // Polling helper for active task
+  useEffect(() => {
+    let intervalId = null;
+    if (executionState === 'running' && currentTaskId) {
+      intervalId = setInterval(() => {
+        pollTaskStatus(currentTaskId);
+      }, 1200);
+    }
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [executionState, currentTaskId, pollTaskStatus]);
 
   const handleStartTesting = async () => {
     if (!testUrl) return;
@@ -338,7 +363,7 @@ export default function App() {
         setBackendConnected(true);
         backendHandled = true;
       }
-    } catch (e) {
+    } catch {
       // Backend not running / static deployment
       backendHandled = false;
     }
@@ -377,7 +402,7 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(profile)
       });
-    } catch (err) {}
+    } catch {}
     alert("Settings saved successfully!");
     fetchProfile();
   };
@@ -637,7 +662,8 @@ export default function App() {
             className={`menu-item ${activeTab === 'dashboard' ? 'active' : ''}`}
             onClick={() => setActiveTab('dashboard')}
           >
-            Dashboard
+            <IconDashboard size={16} />
+            <span>Dashboard</span>
           </li>
           <li 
             id="nav-testing"
@@ -650,28 +676,32 @@ export default function App() {
               }
             }}
           >
-            Run Testing
+            <IconPlay size={16} />
+            <span>Run Testing</span>
           </li>
           <li 
             id="nav-history"
             className={`menu-item ${activeTab === 'history' ? 'active' : ''}`}
             onClick={() => setActiveTab('history')}
           >
-            Execution History
+            <IconHistory size={16} />
+            <span>Execution History</span>
           </li>
           <li 
             id="nav-websites"
             className={`menu-item ${activeTab === 'websites' ? 'active' : ''}`}
             onClick={() => setActiveTab('websites')}
           >
-            Website Info
+            <IconGlobe size={16} />
+            <span>Website Info</span>
           </li>
           <li 
             id="nav-profile"
             className={`menu-item ${activeTab === 'profile' ? 'active' : ''}`}
             onClick={() => setActiveTab('profile')}
           >
-            Profile & Settings
+            <IconSettings size={16} />
+            <span>Profile & Settings</span>
           </li>
         </ul>
 
@@ -724,7 +754,17 @@ export default function App() {
                 e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.18)';
               }}
             >
-              <span>{session ? 'Sign Out ⎋' : 'Exit Demo / Sign In →'}</span>
+              {session ? (
+                <>
+                  <IconLogOut size={13} />
+                  <span>Sign Out</span>
+                </>
+              ) : (
+                <>
+                  <IconLogIn size={13} />
+                  <span>Exit Demo / Sign In</span>
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -752,9 +792,53 @@ export default function App() {
           </div>
 
           <div className="header-actions">
+            {/* Backend engine indicator */}
+            <div className="backend-status-indicator" title={backendConnected ? 'Connected to Testly AI Automation Engine' : 'Operating in Embedded Autonomous Mode'}>
+              <span className={`status-pulse-dot ${backendConnected ? 'online' : 'embedded'}`} />
+              <span className="status-label-text">{backendConnected ? 'Engine Online' : 'Local Agent'}</span>
+            </div>
+
+            {/* Notification bell */}
+            <div className="notif-dropdown-wrapper">
+              <button
+                type="button"
+                id="btn-notifications"
+                className="notification-bell-btn"
+                onClick={() => setShowNotifDropdown(prev => !prev)}
+                title="System Notifications"
+                aria-label="View system notifications"
+              >
+                <IconBell size={18} />
+                {notifications.some(n => !n.read) && <span className="notification-badge" />}
+              </button>
+
+              {showNotifDropdown && (
+                <div className="notif-dropdown-menu">
+                  <div className="notif-dropdown-header">
+                    <span>Audit Alerts</span>
+                    <button
+                      type="button"
+                      className="notif-clear-btn"
+                      onClick={() => setNotifications(prev => prev.map(n => ({ ...n, read: true })))}
+                    >
+                      Mark all read
+                    </button>
+                  </div>
+                  <div className="notif-dropdown-list">
+                    {notifications.map(n => (
+                      <div key={n.id} className={`notif-item ${n.read ? 'read' : 'unread'}`}>
+                        <p className="notif-item-text">{n.text}</p>
+                        <span className="notif-item-time">{n.time}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Search bar */}
             <div className="search-bar-wrapper">
-              <span className="search-icon">🔍</span>
+              <span className="search-icon"><IconSearch size={15} /></span>
               <input 
                 id="global-search-bar"
                 type="text" 
@@ -807,7 +891,10 @@ export default function App() {
                 <div className="card-panel glow-purple" style={{gridColumn: 'span 2'}}>
                   <div className="dashboard-panel-title">
                     <span>Recent Test Executions</span>
-                    <span className="dashboard-view-all" onClick={() => setActiveTab('history')}>View history ➔</span>
+                    <span className="dashboard-view-all" onClick={() => setActiveTab('history')} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      <span>View history</span>
+                      <IconArrowRight size={13} />
+                    </span>
                   </div>
                   <div className="data-table-wrapper">
                     <table className="data-table">
@@ -865,7 +952,10 @@ export default function App() {
               {executionState === 'idle' && (
                 <div className="executor-setup-container glow-purple" style={{animation: 'fadeInUp 0.3s'}}>
                   <div className="executor-header">
-                    <div className="executor-badge">⚡ Autonomous QA Agent Orchestrator</div>
+                    <div className="executor-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <IconCpu size={14} />
+                      <span>Autonomous QA Agent Orchestrator</span>
+                    </div>
                     <h2 className="executor-title">Initiate Quality Assurance Audit</h2>
                     <p className="executor-desc">
                       Configure your target endpoint, select execution environment, and deploy autonomous agents to evaluate functional integrity, DOM responsiveness, and web standards.
@@ -898,7 +988,7 @@ export default function App() {
                             onClick={() => setTestUrl('')}
                             title="Clear URL"
                           >
-                            ✕
+                            <IconClose size={13} />
                           </button>
                         )}
                       </div>
@@ -986,15 +1076,15 @@ export default function App() {
                         disabled={!testUrl || testingTypes.length === 0}
                       >
                         <span>Deploy Autonomous Agents</span>
-                        <span style={{fontSize: '18px', marginLeft: '6px'}}>➔</span>
+                        <IconArrowRight size={18} style={{ marginLeft: '6px' }} />
                       </button>
 
                       <div className="executor-footer-tips">
-                        <span>🔒 Sandboxed headless browser</span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><IconShield size={14} /> Sandboxed headless browser</span>
                         <span>•</span>
-                        <span>⚡ Autonomous assertions</span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><IconZap size={14} /> Autonomous assertions</span>
                         <span>•</span>
-                        <span>📄 Comprehensive PDF audit report</span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><IconFileText size={14} /> Comprehensive PDF audit report</span>
                       </div>
                     </div>
                   </div>
@@ -1007,7 +1097,8 @@ export default function App() {
                   <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px'}}>
                     <h3 className="dashboard-panel-title" style={{margin: 0}}>Active Testing Pipeline</h3>
                     <span className="badge running" style={{fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px'}}>
-                      🌐 {testUrl}
+                      <IconGlobe size={13} />
+                      <span>{testUrl}</span>
                     </span>
                   </div>
                   
@@ -1051,7 +1142,7 @@ export default function App() {
                           className={`workflow-step-node ${isCompleted ? 'completed' : ''} ${isActive ? 'active' : ''}`}
                         >
                           <div className="workflow-step-icon">
-                            {isCompleted ? '✓' : isActive ? '⚙️' : idx + 1}
+                            {isCompleted ? <IconCheck size={14} /> : isActive ? <span className="spinner-sm" style={{ width: 14, height: 14, borderWidth: 2 }} /> : idx + 1}
                           </div>
                           <span className="workflow-step-name">{stepNode.name}</span>
                           <span className="workflow-step-agent">{stepNode.agent}</span>
@@ -1093,11 +1184,25 @@ export default function App() {
                         </p>
                       </div>
                       <div style={{display: 'flex', gap: '12px', alignItems: 'center'}}>
+                        {activeReportUrl && (
+                          <a
+                            href={activeReportUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="btn-secondary"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', textDecoration: 'none' }}
+                          >
+                            <IconFileText size={14} />
+                            <span>Audit Log</span>
+                          </a>
+                        )}
                         <button 
                           className="btn-secondary"
                           onClick={() => setExecutionState('idle')}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                         >
-                          ← Test Another Site
+                          <IconArrowLeft size={14} />
+                          <span>Test Another Site</span>
                         </button>
                         <button
                           className="btn-primary"
@@ -1105,8 +1210,10 @@ export default function App() {
                             e.preventDefault();
                             generatePDF();
                           }}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                         >
-                          📥 Download PDF Report
+                          <IconDownload size={15} />
+                          <span>Download PDF Report</span>
                         </button>
                       </div>
                     </div>
@@ -1153,9 +1260,36 @@ export default function App() {
                     </div>
 
                     {/* Right: Screenshots & Bugs */}
-                    <div style={{display: 'flex', flexDirection: 'column', gap: '32px'}}>
-                      
-
+                    <div style={{display: 'flex', flexDirection: 'column', gap: '24px'}}>
+                      {/* Failure Screenshots Carousel */}
+                      {failureScreenshots.length > 0 && (
+                        <div className="card-panel">
+                          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px'}}>
+                            <h3 className="dashboard-panel-title" style={{margin: 0}}>Inspection Snapshots ({failureScreenshots.length})</h3>
+                            {failureScreenshots.length > 1 && (
+                              <button
+                                type="button"
+                                className="btn-secondary"
+                                style={{padding: '4px 10px', fontSize: '11.5px', display: 'inline-flex', alignItems: 'center', gap: '4px'}}
+                                onClick={nextSlide}
+                              >
+                                <span>Slide {carouselIndex + 1}/{failureScreenshots.length}</span>
+                                <IconArrowRight size={12} />
+                              </button>
+                            )}
+                          </div>
+                          <div style={{borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border-light)'}}>
+                            <img
+                              src={failureScreenshots[carouselIndex]?.url}
+                              alt={failureScreenshots[carouselIndex]?.name}
+                              style={{width: '100%', height: 'auto', display: 'block'}}
+                            />
+                          </div>
+                          <div style={{marginTop: '8px', fontSize: '12px', color: 'var(--text-muted)'}}>
+                            <strong>{failureScreenshots[carouselIndex]?.id}:</strong> {failureScreenshots[carouselIndex]?.name}
+                          </div>
+                        </div>
+                      )}
 
                       {/* Bug Reports analysis */}
                       <div className="card-panel">
@@ -1178,8 +1312,10 @@ export default function App() {
                           </div>
                         ))}
                         {activeBugs.length === 0 && (
-                          <div style={{textAlign: 'center', padding: '24px', color: 'var(--text-muted)'}}>
-                            🎉 Beautiful! No bugs or layout errors detected by analysis agents.
+                          <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: 24, color: 'var(--text-muted)'}}>
+                            <IconShieldCheck size={36} color="var(--success)" />
+                            <span style={{ fontWeight: 600, color: 'var(--wine-900)' }}>Audit Passed Cleanly</span>
+                            <span>No bugs or layout errors detected by analysis agents.</span>
                           </div>
                         )}
                       </div>
@@ -1192,7 +1328,7 @@ export default function App() {
               {executionState === 'error' && (
                 <div className="card-panel" style={{animation: 'fadeInUp 0.3s', border: '1px solid rgba(239, 68, 68, 0.4)'}}>
                   <div style={{display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px'}}>
-                    <span style={{fontSize: '28px'}}>⚠️</span>
+                    <IconAlertTriangle size={32} color="#ef4444" />
                     <div>
                       <h3 style={{color: '#ef4444', fontSize: '18px', fontWeight: '700'}}>Execution Pipeline Alert</h3>
                       <p style={{color: 'var(--text-muted)', fontSize: '13px'}}>
@@ -1203,7 +1339,7 @@ export default function App() {
 
                   <div className="console-logs-wrapper" style={{marginBottom: '20px'}}>
                     {liveLogs.map((log, i) => (
-                      <div key={i} className="console-log-line" style={{color: log.includes('❌') || log.includes('ERROR') ? '#ef4444' : 'inherit'}}>
+                      <div key={i} className="console-log-line" style={{color: log.includes('[ERROR]') || log.includes('ERROR') || log.includes('FAILED') || log.includes('[FAIL]') ? '#ef4444' : 'inherit'}}>
                         [{new Date().toLocaleTimeString()}] {log}
                       </div>
                     ))}
@@ -1216,14 +1352,18 @@ export default function App() {
                         setExecutionState('idle');
                         setErrorMessage(null);
                       }}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                     >
-                      ← Back to Form
+                      <IconArrowLeft size={14} />
+                      <span>Back to Form</span>
                     </button>
                     <button 
                       className="btn-primary" 
                       onClick={handleStartTesting}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                     >
-                      🔄 Retry Testing
+                      <IconRefresh size={14} />
+                      <span>Retry Testing</span>
                     </button>
                   </div>
                 </div>
@@ -1238,14 +1378,16 @@ export default function App() {
                 <h3 className="dashboard-panel-title" style={{margin: 0}}>Audit History Log</h3>
                 <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
                   <span className="badge passed" style={{fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px'}}>
-                    ☁️ Supabase Cloud DB
+                    <IconCloud size={13} />
+                    <span>Supabase Cloud DB</span>
                   </span>
                   <button
                     className="btn-secondary"
-                    style={{padding: '4px 10px', fontSize: '11px'}}
+                    style={{padding: '4px 10px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px'}}
                     onClick={() => fetchHistory(authUser?.id)}
                   >
-                    🔄 Refresh
+                    <IconRefresh size={12} />
+                    <span>Refresh</span>
                   </button>
                 </div>
               </div>
@@ -1299,11 +1441,11 @@ export default function App() {
                             </button>
                             <button 
                               className="btn-secondary" 
-                              style={{padding: '6px 10px', fontSize: '12px', color: '#f43f5e', borderColor: 'rgba(244, 63, 94, 0.4)'}}
+                              style={{padding: '6px 10px', fontSize: '12px', color: '#f43f5e', borderColor: 'rgba(244, 63, 94, 0.4)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center'}}
                               onClick={(e) => handleDeleteHistoryItem(h.id, e)}
                               title="Delete permanently from Supabase database"
                             >
-                              🗑️
+                              <IconTrash size={14} />
                             </button>
                           </div>
                         </td>
@@ -1329,14 +1471,16 @@ export default function App() {
                 <h3 className="dashboard-panel-title" style={{margin: 0}}>Website Crawl Details</h3>
                 <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
                   <span className="badge passed" style={{fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px'}}>
-                    ☁️ Supabase Cloud DB
+                    <IconCloud size={13} />
+                    <span>Supabase Cloud DB</span>
                   </span>
                   <button
                     className="btn-secondary"
-                    style={{padding: '4px 10px', fontSize: '11px'}}
+                    style={{padding: '4px 10px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px'}}
                     onClick={() => fetchWebsites(authUser?.id)}
                   >
-                    🔄 Refresh
+                    <IconRefresh size={12} />
+                    <span>Refresh</span>
                   </button>
                 </div>
               </div>
@@ -1517,9 +1661,19 @@ export default function App() {
                     type="button"
                     className="btn-secondary"
                     onClick={handleSignOut}
-                    style={{ fontSize: '12.5px', padding: '8px 16px', cursor: 'pointer' }}
+                    style={{ fontSize: '12.5px', padding: '8px 16px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                   >
-                    {session ? 'Sign Out of Supabase ⎋' : 'Sign In with Supabase →'}
+                    {session ? (
+                      <>
+                        <IconLogOut size={14} />
+                        <span>Sign Out of Supabase</span>
+                      </>
+                    ) : (
+                      <>
+                        <IconLogIn size={14} />
+                        <span>Sign In with Supabase</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </div>

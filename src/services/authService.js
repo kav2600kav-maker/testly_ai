@@ -115,7 +115,7 @@ export async function sendPasswordResetOtp(email) {
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(trimmedEmail);
       if (!error) supabaseSuccess = true;
-    } catch (_) {}
+    } catch {}
 
     if (smtpSuccess || supabaseSuccess) {
       return {
@@ -156,7 +156,7 @@ export async function verifyPasswordResetOtp(email, otpToken) {
       if (resp.ok && json.success) {
         smtpVerified = true;
       }
-    } catch (_) {}
+    } catch {}
 
     // 2. Validate against Supabase recovery token
     let supabaseVerified = false;
@@ -173,7 +173,7 @@ export async function verifyPasswordResetOtp(email, otpToken) {
         session = data.session;
         user = data.user;
       }
-    } catch (_) {}
+    } catch {}
 
     // 3. Directly check Supabase public.password_reset_otps table (handles stateless Vercel edge cases)
     let tableVerified = false;
@@ -197,7 +197,7 @@ export async function verifyPasswordResetOtp(email, otpToken) {
             .eq('id', record.id);
         }
       }
-    } catch (_) {}
+    } catch {}
 
     if (smtpVerified || supabaseVerified || tableVerified) {
       return {
@@ -248,7 +248,7 @@ export async function updateUserPassword(params) {
           return { success: true, user: data.user };
         }
       }
-    } catch (_) {}
+    } catch {}
 
     // 2. If no active session, use our secure reset_user_password RPC
     if (email && otpToken) {
@@ -266,7 +266,7 @@ export async function updateUserPassword(params) {
             return { success: false, error: rpcData.error };
           }
         }
-      } catch (_) {}
+      } catch {}
 
       // 3. Fallback to backend reset-password endpoint
       try {
@@ -286,7 +286,7 @@ export async function updateUserPassword(params) {
         if (json.detail) {
           return { success: false, error: json.detail };
         }
-      } catch (_) {}
+      } catch {}
     }
 
     return {
