@@ -1,6 +1,11 @@
 {
   "buildCommand": "npm --prefix frontend install && npm --prefix frontend run build",
   "outputDirectory": "dist",
+  "functions": {
+    "api/index.py": {
+      "includeFiles": "backend/**"
+    }
+  },
   "rewrites": [
     {
       "source": "/api/(.*)",
@@ -11,7 +16,7 @@
       "destination": "/api/index.py"
     },
     {
-      "source": "/((?!assets|api|static|favicon\\.svg|icons\\.svg|vite\\.svg).*)",
+      "source": "/(.*)",
       "destination": "/index.html"
     }
   ]
