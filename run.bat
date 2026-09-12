@@ -9,7 +9,7 @@ start "Testly AI - Backend Server" cmd /k "cd backend && python -m uvicorn app.m
 
 echo.
 echo [2/2] Launching Vite React Frontend Server...
-start "Testly AI - Frontend Dashboard" cmd /k "cd frontend && npm run dev"
+start "Testly AI - Frontend Dashboard" cmd /k "npm run dev"
 
 echo.
 echo ===================================================
