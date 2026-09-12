@@ -1,8 +1,18 @@
 import json
 import os
+import shutil
 from datetime import datetime
 
-DB_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "db.json")
+if os.environ.get("VERCEL"):
+    DB_FILE = "/tmp/db.json"
+    template_db = os.path.join(os.path.dirname(os.path.abspath(__file__)), "db.json")
+    if not os.path.exists(DB_FILE) and os.path.exists(template_db):
+        try:
+            shutil.copyfile(template_db, DB_FILE)
+        except Exception:
+            pass
+else:
+    DB_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "db.json")
 
 DEFAULT_DB = {
     "profile": {

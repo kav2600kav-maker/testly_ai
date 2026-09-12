@@ -21,10 +21,15 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(level
 logger = logging.getLogger("testly_ai")
 
 # Setup directories
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-STATIC_DIR = os.path.join(BASE_DIR, "app", "static")
-SCREENSHOTS_DIR = os.path.join(STATIC_DIR, "screenshots")
-REPORTS_DIR = os.path.join(STATIC_DIR, "reports")
+if os.environ.get("VERCEL"):
+    STATIC_DIR = "/tmp/static"
+    SCREENSHOTS_DIR = os.path.join(STATIC_DIR, "screenshots")
+    REPORTS_DIR = os.path.join(STATIC_DIR, "reports")
+else:
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    STATIC_DIR = os.path.join(BASE_DIR, "app", "static")
+    SCREENSHOTS_DIR = os.path.join(STATIC_DIR, "screenshots")
+    REPORTS_DIR = os.path.join(STATIC_DIR, "reports")
 
 os.makedirs(SCREENSHOTS_DIR, exist_ok=True)
 os.makedirs(REPORTS_DIR, exist_ok=True)
