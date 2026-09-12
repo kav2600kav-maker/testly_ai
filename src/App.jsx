@@ -863,76 +863,155 @@ export default function App() {
           {activeTab === 'testing' && (
             <div>
               {executionState === 'idle' && (
-                <div className="executor-setup-container card-panel glow-purple" style={{animation: 'fadeInUp 0.3s'}}>
-                  <h2 className="executor-title">Initiate Quality Assurance Audit</h2>
-                  <p className="executor-desc">
-                    Input a target website URL. Our autonomous AI Agents will examine layout hierarchies, write assertions, trigger headless validations, and log code issues.
-                  </p>
-                  
-                  <div className="input-group">
-                    <label className="input-label" htmlFor="testing-url-input">Target Website URL</label>
-                    <input 
-                      id="testing-url-input"
-                      type="url" 
-                      className="input-field" 
-                      placeholder="https://example.com" 
-                      value={testUrl}
-                      onChange={(e) => setTestUrl(e.target.value)}
-                    />
+                <div className="executor-setup-container glow-purple" style={{animation: 'fadeInUp 0.3s'}}>
+                  <div className="executor-header">
+                    <div className="executor-badge">⚡ Autonomous QA Agent Orchestrator</div>
+                    <h2 className="executor-title">Initiate Quality Assurance Audit</h2>
+                    <p className="executor-desc">
+                      Configure your target endpoint, select execution environment, and deploy autonomous agents to evaluate functional integrity, DOM responsiveness, and web standards.
+                    </p>
                   </div>
 
-                  <div className="input-row">
+                  <div className="executor-form">
+                    {/* Target URL Input */}
                     <div className="input-group">
-                      <label className="input-label" htmlFor="testing-browser-select">Execution Browser</label>
-                      <select 
-                        id="testing-browser-select"
-                        className="select-field" 
-                        value={selectedBrowser} 
-                        onChange={(e) => setSelectedBrowser(e.target.value)}
-                      >
-                        <option value="Chrome">Chrome (Recommended)</option>
-                        <option value="Firefox">Firefox</option>
-                        <option value="Safari">Safari</option>
-                      </select>
+                      <div className="input-label-row">
+                        <label className="input-label" htmlFor="testing-url-input">
+                          Target Website URL <span className="input-label-required">*</span>
+                        </label>
+                        <span className="input-label-badge">Supports HTTP / HTTPS</span>
+                      </div>
+                      <div className="url-input-container">
+                        <span className="url-input-prefix">🌐 URL:</span>
+                        <input 
+                          id="testing-url-input"
+                          type="url" 
+                          className="url-field" 
+                          placeholder="https://example.com or http://localhost:3000" 
+                          value={testUrl}
+                          onChange={(e) => setTestUrl(e.target.value)}
+                        />
+                        {testUrl && (
+                          <button 
+                            type="button" 
+                            className="url-clear-btn" 
+                            onClick={() => setTestUrl('')}
+                            title="Clear URL"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                      <span className="input-hint">
+                        Provide the full domain or local dev URL to audit (e.g. <code>https://react.dev</code> or <code>http://localhost:5173</code>).
+                      </span>
                     </div>
 
+                    {/* Execution Browser Selection */}
                     <div className="input-group">
-                      <label className="input-label">Testing Capabilities</label>
-                      <div className="types-checkbox-grid">
-                        {['Functional', 'UI/UX', 'Performance', 'SEO'].map(type => (
+                      <div className="input-label-row">
+                        <label className="input-label">Execution Environment / Browser</label>
+                        <span className="input-label-badge">{selectedBrowser} selected</span>
+                      </div>
+                      <div className="browser-selector-grid">
+                        {[
+                          { id: 'Chrome', name: 'Google Chrome', tag: 'V8 Engine • Recommended', icon: '🌐' },
+                          { id: 'Firefox', name: 'Mozilla Firefox', tag: 'Gecko Engine • Standard', icon: '🦊' },
+                          { id: 'Safari', name: 'Apple Safari', tag: 'WebKit • macOS & iOS', icon: '🧭' }
+                        ].map(b => (
                           <div 
-                            key={type} 
-                            className={`type-checkbox-card ${testingTypes.includes(type) ? 'selected' : ''}`}
-                            onClick={() => toggleTestingType(type)}
+                            key={b.id}
+                            className={`browser-card ${selectedBrowser === b.id ? 'selected' : ''}`}
+                            onClick={() => setSelectedBrowser(b.id)}
                           >
-                            <input 
-                              type="checkbox" 
-                              checked={testingTypes.includes(type)}
-                              onChange={() => {}} // click on card handles it
-                            />
-                            <span className="type-checkbox-label">{type}</span>
+                            <span className="browser-card-icon">{b.icon}</span>
+                            <div className="browser-card-info">
+                              <span className="browser-card-name">{b.name}</span>
+                              <span className="browser-card-tag">{b.tag}</span>
+                            </div>
+                            <div className="browser-card-radio">
+                              {selectedBrowser === b.id && <div className="radio-inner" />}
+                            </div>
                           </div>
                         ))}
                       </div>
                     </div>
-                  </div>
 
-                  <button 
-                    id="btn-start-testing"
-                    className="btn-primary" 
-                    style={{marginTop: '20px', width: '100%', justifyContent: 'center', padding: '16px'}}
-                    onClick={handleStartTesting}
-                    disabled={!testUrl}
-                  >
-                    Deploy Autonomous Agents ➔
-                  </button>
+                    {/* Testing Capabilities Selection */}
+                    <div className="input-group">
+                      <div className="input-label-row">
+                        <label className="input-label">Testing Capabilities & Scope</label>
+                        <span className="input-label-badge">{testingTypes.length} of 4 enabled</span>
+                      </div>
+                      <div className="types-checkbox-grid">
+                        {[
+                          { id: 'Functional', label: 'Functional QA', desc: 'Forms, buttons, navigations & actions', icon: '⚙️' },
+                          { id: 'UI/UX', label: 'UI / UX Design', desc: 'Layout hierarchy, responsiveness & badges', icon: '🎨' },
+                          { id: 'Performance', label: 'Performance', desc: 'Page speed, render times & payload', icon: '⚡' },
+                          { id: 'SEO', label: 'SEO & Security', desc: 'HTTPS protocols, meta tags & headers', icon: '🛡️' }
+                        ].map(type => (
+                          <div 
+                            key={type.id} 
+                            className={`type-checkbox-card ${testingTypes.includes(type.id) ? 'selected' : ''}`}
+                            onClick={() => toggleTestingType(type.id)}
+                          >
+                            <div className="type-checkbox-header">
+                              <span className="type-icon">{type.icon}</span>
+                              <input 
+                                type="checkbox" 
+                                checked={testingTypes.includes(type.id)}
+                                onChange={() => {}} 
+                              />
+                            </div>
+                            <span className="type-checkbox-label">{type.label}</span>
+                            <span className="type-checkbox-desc">{type.desc}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Action Button & Trust Strip */}
+                    <div className="executor-action-container">
+                      <button 
+                        id="btn-start-testing"
+                        className="btn-primary" 
+                        style={{
+                          width: '100%', 
+                          justifyContent: 'center', 
+                          padding: '16px 24px',
+                          fontSize: '16px',
+                          fontWeight: '700',
+                          borderRadius: '12px',
+                          boxShadow: '0 6px 20px rgba(142, 20, 50, 0.3)'
+                        }}
+                        onClick={handleStartTesting}
+                        disabled={!testUrl || testingTypes.length === 0}
+                      >
+                        <span>Deploy Autonomous Agents</span>
+                        <span style={{fontSize: '18px', marginLeft: '6px'}}>➔</span>
+                      </button>
+
+                      <div className="executor-footer-tips">
+                        <span>🔒 Sandboxed headless browser</span>
+                        <span>•</span>
+                        <span>⚡ Autonomous assertions</span>
+                        <span>•</span>
+                        <span>📄 Comprehensive PDF audit report</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
 
               {/* Executing Tracker View */}
               {executionState === 'running' && (
-                <div className="card-panel workflow-tracker-card" style={{animation: 'fadeInUp 0.3s'}}>
-                  <h3 className="dashboard-panel-title">Active Testing Pipeline: {testUrl}</h3>
+                <div className="workflow-tracker-card glow-purple" style={{animation: 'fadeInUp 0.3s'}}>
+                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px'}}>
+                    <h3 className="dashboard-panel-title" style={{margin: 0}}>Active Testing Pipeline</h3>
+                    <span className="badge running" style={{fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px'}}>
+                      🌐 {testUrl}
+                    </span>
+                  </div>
                   
                   {/* Step trackers */}
                   <div className="workflow-steps-row">
@@ -984,7 +1063,7 @@ export default function App() {
                   </div>
 
                   {/* Terminal console logs */}
-                  <h4 style={{fontSize: '14px', marginBottom: '10px'}}>Pipeline Logs</h4>
+                  <h4 style={{fontSize: '14px', marginBottom: '10px', color: 'var(--text-main)', fontWeight: '700'}}>Live Execution Logs</h4>
                   <div className="console-logs-wrapper">
                     {liveLogs.map((log, i) => (
                       <div key={i} className="console-log-line">
@@ -1003,20 +1082,24 @@ export default function App() {
               {/* Execution Results View */}
               {executionState === 'finished' && (
                 <div style={{animation: 'fadeInUp 0.3s'}}>
-                  <div className="card-panel" style={{marginBottom: '32px'}}>
-                    <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                  <div className="card-panel results-header-card glow-purple">
+                    <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px'}}>
                       <div>
-                        <h2 style={{fontSize: '24px', fontWeight: '800'}}>{testUrl}</h2>
+                        <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px'}}>
+                          <span className="badge passed" style={{fontSize: '11px'}}>Audit Complete</span>
+                          <span style={{fontSize: '12px', color: 'var(--text-muted)'}}>{selectedBrowser} Browser</span>
+                        </div>
+                        <h2 style={{fontSize: '22px', fontWeight: '800', color: 'var(--text-main)', wordBreak: 'break-all'}}>{testUrl}</h2>
                         <p style={{color: 'var(--text-muted)', fontSize: '13px', marginTop: '4px'}}>
-                          Classification: <strong>{activePlan.site_type || 'Landing Page'}</strong> | Title: <strong>{activePlan.title || 'Audited Web'}</strong>
+                          Classification: <strong>{activePlan.site_type || 'Modern Web App'}</strong> | Stack: <strong>{Array.isArray(activePlan.technologies) ? activePlan.technologies.join(', ') : 'HTML5, CSS3'}</strong>
                         </p>
                       </div>
-                      <div style={{display: 'flex', gap: '12px'}}>
+                      <div style={{display: 'flex', gap: '12px', alignItems: 'center'}}>
                         <button 
                           className="btn-secondary"
                           onClick={() => setExecutionState('idle')}
                         >
-                          Test Another Site
+                          ← Test Another Site
                         </button>
                         <button
                           className="btn-primary"
@@ -1025,7 +1108,7 @@ export default function App() {
                             generatePDF();
                           }}
                         >
-                          Download PDF Report
+                          📥 Download PDF Report
                         </button>
                       </div>
                     </div>
