@@ -882,7 +882,7 @@ export default function App() {
                         <span className="input-label-badge">Supports HTTP / HTTPS</span>
                       </div>
                       <div className="url-input-container">
-                        <span className="url-input-prefix">🌐 URL:</span>
+                        <span className="url-input-prefix">URL:</span>
                         <input 
                           id="testing-url-input"
                           type="url" 
@@ -915,16 +915,15 @@ export default function App() {
                       </div>
                       <div className="browser-selector-grid">
                         {[
-                          { id: 'Chrome', name: 'Google Chrome', tag: 'V8 Engine • Recommended', icon: '🌐' },
-                          { id: 'Firefox', name: 'Mozilla Firefox', tag: 'Gecko Engine • Standard', icon: '🦊' },
-                          { id: 'Safari', name: 'Apple Safari', tag: 'WebKit • macOS & iOS', icon: '🧭' }
+                          { id: 'Chrome', name: 'Google Chrome', tag: 'V8 Engine • Recommended' },
+                          { id: 'Firefox', name: 'Mozilla Firefox', tag: 'Gecko Engine • Standard' },
+                          { id: 'Safari', name: 'Apple Safari', tag: 'WebKit • macOS & iOS' }
                         ].map(b => (
                           <div 
                             key={b.id}
                             className={`browser-card ${selectedBrowser === b.id ? 'selected' : ''}`}
                             onClick={() => setSelectedBrowser(b.id)}
                           >
-                            <span className="browser-card-icon">{b.icon}</span>
                             <div className="browser-card-info">
                               <span className="browser-card-name">{b.name}</span>
                               <span className="browser-card-tag">{b.tag}</span>
@@ -945,10 +944,10 @@ export default function App() {
                       </div>
                       <div className="types-checkbox-grid">
                         {[
-                          { id: 'Functional', label: 'Functional QA', desc: 'Forms, buttons, navigations & actions', icon: '⚙️' },
-                          { id: 'UI/UX', label: 'UI / UX Design', desc: 'Layout hierarchy, responsiveness & badges', icon: '🎨' },
-                          { id: 'Performance', label: 'Performance', desc: 'Page speed, render times & payload', icon: '⚡' },
-                          { id: 'SEO', label: 'SEO & Security', desc: 'HTTPS protocols, meta tags & headers', icon: '🛡️' }
+                          { id: 'Functional', label: 'Functional QA', desc: 'Forms, buttons, navigations & actions' },
+                          { id: 'UI/UX', label: 'UI / UX Design', desc: 'Layout hierarchy, responsiveness & badges' },
+                          { id: 'Performance', label: 'Performance', desc: 'Page speed, render times & payload' },
+                          { id: 'SEO', label: 'SEO & Security', desc: 'HTTPS protocols, meta tags & headers' }
                         ].map(type => (
                           <div 
                             key={type.id} 
@@ -956,14 +955,13 @@ export default function App() {
                             onClick={() => toggleTestingType(type.id)}
                           >
                             <div className="type-checkbox-header">
-                              <span className="type-icon">{type.icon}</span>
+                              <span className="type-checkbox-label">{type.label}</span>
                               <input 
                                 type="checkbox" 
                                 checked={testingTypes.includes(type.id)}
                                 onChange={() => {}} 
                               />
                             </div>
-                            <span className="type-checkbox-label">{type.label}</span>
                             <span className="type-checkbox-desc">{type.desc}</span>
                           </div>
                         ))}

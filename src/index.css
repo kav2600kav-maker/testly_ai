@@ -847,13 +847,6 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: 0 4px 14px rgba(142, 20, 50, 0.12);
 }
 
-.browser-card-icon {
-  font-size: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
 .browser-card-info {
   display: flex;
   flex-direction: column;
@@ -934,10 +927,7 @@ h1, h2, h3, h4, h5, h6 {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 6px;
-}
-
-.type-icon {
-  font-size: 20px;
+  gap: 8px;
 }
 
 .type-checkbox-header input {
@@ -946,6 +936,7 @@ h1, h2, h3, h4, h5, h6 {
   cursor: pointer;
   accent-color: var(--primary);
   margin: 0;
+  flex-shrink: 0;
 }
 
 .type-checkbox-label {
@@ -953,6 +944,7 @@ h1, h2, h3, h4, h5, h6 {
   font-weight: 700;
   color: var(--text-main);
   user-select: none;
+  white-space: nowrap;
 }
 
 .type-checkbox-desc {
