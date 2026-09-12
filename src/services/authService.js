@@ -220,27 +220,84 @@ export async function verifyPasswordResetOtp(email, otpToken) {
 
 
 /**
- * Update the user password (called after OTP verification establishes recovery session)
- * @param {string} newPassword
+ * Update the user password
+ * Handles both active sessions and session-less OTP recovery via reset_user_password RPC
+ * @param {Object|string} params
+ * @param {string} [params.email]
+ * @param {string} [params.otpToken]
+ * @param {string} [params.newPassword]
  */
-export async function updateUserPassword(newPassword) {
+export async function updateUserPassword(params) {
   try {
-    const { data, error } = await supabase.auth.updateUser({
-      password: newPassword
-    });
+    const newPassword = typeof params === 'string' ? params : params?.newPassword;
+    const email = typeof params === 'object' ? params?.email : null;
+    const otpToken = typeof params === 'object' ? params?.otpToken : null;
 
-    if (error) {
-      return { success: false, error: error.message };
+    if (!newPassword || newPassword.length < 6) {
+      return { success: false, error: 'Password must be at least 6 characters in length.' };
+    }
+
+    // 1. Try native Supabase updateUser if an active session exists
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (sessionData?.session) {
+        const { data, error } = await supabase.auth.updateUser({
+          password: newPassword
+        });
+        if (!error && data?.user) {
+          return { success: true, user: data.user };
+        }
+      }
+    } catch (_) {}
+
+    // 2. If no active session, use our secure reset_user_password RPC
+    if (email && otpToken) {
+      try {
+        const { data: rpcData, error: rpcError } = await supabase.rpc('reset_user_password', {
+          user_email: email.trim().toLowerCase(),
+          otp_token: otpToken.trim(),
+          new_plain_password: newPassword
+        });
+
+        if (!rpcError && rpcData) {
+          if (rpcData.success) {
+            return { success: true, message: rpcData.message };
+          } else {
+            return { success: false, error: rpcData.error };
+          }
+        }
+      } catch (_) {}
+
+      // 3. Fallback to backend reset-password endpoint
+      try {
+        const resp = await fetch(`${API_BASE}/auth/reset-password`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: email.trim(),
+            otp: otpToken.trim(),
+            new_password: newPassword
+          })
+        });
+        const json = await resp.json();
+        if (resp.ok && json.success) {
+          return { success: true, message: json.message };
+        }
+        if (json.detail) {
+          return { success: false, error: json.detail };
+        }
+      } catch (_) {}
     }
 
     return {
-      success: true,
-      user: data.user
+      success: false,
+      error: 'Please execute the updated SQL script in Supabase SQL Editor to enable session-less password updates.'
     };
   } catch (err) {
     return { success: false, error: err.message || 'Failed to update password.' };
   }
 }
+
 
 /**
  * Get current session from Supabase client

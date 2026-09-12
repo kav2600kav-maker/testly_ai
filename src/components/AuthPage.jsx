@@ -310,13 +310,18 @@ export default function AuthPage({ onLoginSuccess, onContinueAsGuest }) {
     }
 
     setLoading(true);
-    const result = await updateUserPassword(newPassword);
+    const result = await updateUserPassword({
+      email: forgotEmail,
+      otpToken: otpDigits.join(''),
+      newPassword: newPassword
+    });
     setLoading(false);
 
     if (!result.success) {
       setErrorMsg(result.error);
       return;
     }
+
 
     setSuccessMsg('Your password has been successfully updated!');
     setForgotStep(4);

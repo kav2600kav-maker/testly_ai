@@ -477,3 +477,54 @@ def api_verify_smtp_otp(req: VerifyOtpRequest):
     raise HTTPException(status_code=400, detail="Invalid or expired OTP code. Please check your email and try again.")
 
 
+class ResetPasswordRequest(BaseModel):
+    email: str
+    otp: str
+    new_password: str
+
+@app.post("/api/auth/reset-password")
+@app.post("/auth/reset-password")
+def api_reset_password(req: ResetPasswordRequest):
+    email = req.email.strip().lower()
+    otp = req.otp.strip()
+    new_password = req.new_password
+
+    if len(new_password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters in length.")
+
+    # Call Supabase RPC reset_user_password
+    try:
+        import urllib.request
+        import json
+
+        rpc_url = f"{SUPABASE_URL}/rest/v1/rpc/reset_user_password"
+        payload = json.dumps({
+            "user_email": email,
+            "otp_token": otp,
+            "new_plain_password": new_password
+        }).encode("utf-8")
+
+        req_rpc = urllib.request.Request(
+            rpc_url,
+            data=payload,
+            headers={
+                "Content-Type": "application/json",
+                "apikey": SUPABASE_KEY,
+                "Authorization": f"Bearer {SUPABASE_KEY}"
+            }
+        )
+
+        with urllib.request.urlopen(req_rpc, timeout=8) as resp:
+            data = json.loads(resp.read().decode())
+            if data and data.get("success"):
+                return {"success": True, "message": "Password updated successfully."}
+            else:
+                raise HTTPException(status_code=400, detail=data.get("error", "Failed to reset password."))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error executing reset_user_password RPC: {e}")
+        raise HTTPException(status_code=500, detail=f"Database update error: {str(e)}")
+
+
+

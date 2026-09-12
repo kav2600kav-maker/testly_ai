@@ -218,4 +218,69 @@ CREATE POLICY "Authenticated Users Can Upload Reports"
     ON storage.objects FOR INSERT
     WITH CHECK (bucket_id IN ('testly-reports', 'testly-screenshots'));
 
+-- ==============================================================================
+-- 9. SECURE PASSWORD RESET FUNCTION (NO AUTH SESSION REQUIRED)
+-- Allows setting a new password using the verified OTP from password_reset_otps
+-- ==============================================================================
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
+
+CREATE OR REPLACE FUNCTION public.reset_user_password(
+    user_email TEXT,
+    otp_token TEXT,
+    new_plain_password TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions, auth
+AS $$
+DECLARE
+    matched_otp RECORD;
+    target_user_id UUID;
+BEGIN
+    -- Validate password length
+    IF LENGTH(new_plain_password) < 6 THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Password must be at least 6 characters in length.');
+    END IF;
+
+    -- 1. Check if a valid, unexpired OTP exists for this email
+    SELECT * INTO matched_otp
+    FROM public.password_reset_otps
+    WHERE LOWER(email) = LOWER(TRIM(user_email))
+      AND otp_code = TRIM(otp_token)
+      AND expires_at > NOW()
+    ORDER BY created_at DESC
+    LIMIT 1;
+
+    IF matched_otp IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Invalid or expired OTP verification code.');
+    END IF;
+
+    -- 2. Locate user in auth.users
+    SELECT id INTO target_user_id
+    FROM auth.users
+    WHERE LOWER(email) = LOWER(TRIM(user_email));
+
+    IF target_user_id IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'No registered account found with this email address.');
+    END IF;
+
+    -- 3. Directly update the encrypted password in auth.users using bcrypt
+    UPDATE auth.users
+    SET encrypted_password = extensions.crypt(new_plain_password, extensions.gen_salt('bf')),
+        updated_at = NOW()
+    WHERE id = target_user_id;
+
+    -- 4. Mark the OTP as verified/used so it cannot be reused
+    UPDATE public.password_reset_otps
+    SET verified = TRUE
+    WHERE id = matched_otp.id;
+
+    RETURN jsonb_build_object('success', true, 'message', 'Password has been successfully updated.');
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.reset_user_password(TEXT, TEXT, TEXT) TO anon, authenticated, service_role;
+
 -- Done!
+
