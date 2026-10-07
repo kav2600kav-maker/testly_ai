@@ -514,7 +514,7 @@ export default function AuthPage({ onLoginSuccess, onContinueAsGuest }) {
                   id="signup-name"
                   type="text"
                   className="auth-input"
-                  placeholder="Kavya Sharma"
+                  placeholder="Alex Morgan"
                   value={signUpName}
                   onChange={(e) => setSignUpName(e.target.value)}
                   required
@@ -530,7 +530,7 @@ export default function AuthPage({ onLoginSuccess, onContinueAsGuest }) {
                   id="signup-email"
                   type="email"
                   className="auth-input"
-                  placeholder="kavya@enterprise.com"
+                  placeholder="alex@enterprise.com"
                   value={signUpEmail}
                   onChange={(e) => setSignUpEmail(e.target.value)}
                   autoComplete="email"

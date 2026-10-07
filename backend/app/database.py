@@ -16,8 +16,8 @@ else:
 
 DEFAULT_DB = {
     "profile": {
-        "name": "Kavya",
-        "email": "kavya@gmail.com"
+        "name": "Testly User",
+        "email": "user@testly.ai"
     },
     "history": [],
     "websites": []

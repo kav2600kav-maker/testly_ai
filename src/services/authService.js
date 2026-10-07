@@ -337,3 +337,43 @@ export function subscribeToAuthChanges(callback) {
   const { data: { subscription } } = supabase.auth.onAuthStateChange(callback);
   return subscription;
 }
+
+/**
+ * Update authenticated user profile in Supabase Auth & public.profiles
+ * @param {Object} params
+ * @param {string} params.fullName
+ * @param {string} [params.email]
+ */
+export async function updateUserProfile({ fullName, email }) {
+  try {
+    const updateData = {};
+    if (fullName) {
+      updateData.data = { full_name: fullName.trim() };
+    }
+    if (email && email.trim()) {
+      updateData.email = email.trim();
+    }
+    const { data, error } = await supabase.auth.updateUser(updateData);
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    if (data?.user) {
+      try {
+        await supabase
+          .from('profiles')
+          .upsert({
+            id: data.user.id,
+            email: data.user.email || email,
+            full_name: (fullName || '').trim(),
+            updated_at: new Date().toISOString()
+          });
+      } catch {}
+    }
+
+    return { success: true, user: data?.user };
+  } catch (err) {
+    return { success: false, error: err.message || 'Failed to update user profile.' };
+  }
+}
+

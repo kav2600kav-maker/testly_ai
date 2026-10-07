@@ -1,8 +1,8 @@
 // Local storage service for Testly AI
 
 const DEFAULT_PROFILE = {
-  name: "Kavya",
-  email: "kavya@gmail.com"
+  name: "User",
+  email: "user@testly.ai"
 };
 
 const INITIAL_HISTORY = [
@@ -119,36 +119,53 @@ const INITIAL_WEBSITES = [
   }
 ];
 
-export const getStoredProfile = () => {
-  try {
-    const raw = localStorage.getItem("testly_profile");
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      return {
-        name: parsed.name || DEFAULT_PROFILE.name,
-        email: parsed.email || DEFAULT_PROFILE.email
-      };
-    }
-    return { ...DEFAULT_PROFILE };
-  } catch {
-    return { ...DEFAULT_PROFILE };
-  }
+const getProfileKey = (userId) => {
+  return userId ? `testly_profile_${userId}` : 'testly_profile_guest';
 };
 
-export const saveStoredProfile = (profile) => {
+export const getStoredProfile = (userId = null, fallbackUser = null) => {
   try {
-    const clean = {
-      name: profile?.name || DEFAULT_PROFILE.name,
-      email: profile?.email || DEFAULT_PROFILE.email
+    const key = getProfileKey(userId);
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && (parsed.name || parsed.email)) {
+        return {
+          name: parsed.name || (fallbackUser?.user_metadata?.full_name || fallbackUser?.user_metadata?.name || ''),
+          email: parsed.email || fallbackUser?.email || ''
+        };
+      }
+    }
+  } catch {}
+
+  // If no stored profile for this user, derive dynamically from fallbackUser
+  if (fallbackUser) {
+    const metaName = fallbackUser.user_metadata?.full_name || fallbackUser.user_metadata?.name;
+    const emailName = fallbackUser.email ? fallbackUser.email.split('@')[0] : '';
+    const formattedEmailName = emailName
+      ? emailName.replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+      : 'User';
+    return {
+      name: metaName || formattedEmailName || 'User',
+      email: fallbackUser.email || ''
     };
-    localStorage.setItem("testly_profile", JSON.stringify(clean));
+  }
+
+  return { ...DEFAULT_PROFILE };
+};
+
+export const saveStoredProfile = (profile, userId = null) => {
+  try {
+    const key = getProfileKey(userId);
+    const clean = {
+      name: profile?.name || '',
+      email: profile?.email || ''
+    };
+    localStorage.setItem(key, JSON.stringify(clean));
     return clean;
   } catch (e) {
     console.warn("Could not save profile to localStorage:", e);
-    return {
-      name: profile?.name || DEFAULT_PROFILE.name,
-      email: profile?.email || DEFAULT_PROFILE.email
-    };
+    return profile;
   }
 };
 

@@ -5,7 +5,8 @@ import AuthPage from './components/AuthPage';
 import {
   getCurrentSession,
   signOutUser,
-  subscribeToAuthChanges
+  subscribeToAuthChanges,
+  updateUserProfile
 } from './services/authService';
 import {
   getStoredProfile,
@@ -62,12 +63,26 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [isGuestMode, setIsGuestMode] = useState(false);
   
+  // Helper to extract clean display name and email from an authenticated user
+  const getDerivedUserInfo = (user) => {
+    if (!user) return { name: 'Guest User', email: 'guest@testly.ai' };
+    const metaName = user.user_metadata?.full_name || user.user_metadata?.name;
+    const emailName = user.email ? user.email.split('@')[0] : 'User';
+    const formattedEmailName = emailName
+      ? emailName.replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+      : 'User';
+    return {
+      name: metaName || formattedEmailName || 'User',
+      email: user.email || ''
+    };
+  };
+
   // Dashboard & History States
   const [history, setHistory] = useState([]);
   const [websites, setWebsites] = useState([]);
   const [profile, setProfile] = useState({
-    name: 'Kavya',
-    email: 'kavya@gmail.com'
+    name: '',
+    email: ''
   });
   const [profileSuccessMsg, setProfileSuccessMsg] = useState(false);
   const [copiedEmail, setCopiedEmail] = useState(false);
@@ -104,30 +119,36 @@ export default function App() {
   // Check Supabase session & listen for auth state updates
   useEffect(() => {
     getCurrentSession().then(({ session }) => {
-      if (session) {
+      if (session?.user) {
         setSession(session);
         setAuthUser(session.user);
-        if (session.user) {
-          setProfile(prev => ({
-            name: session.user.user_metadata?.full_name || prev.name,
-            email: session.user.email || prev.email
-          }));
-        }
+        const derived = getDerivedUserInfo(session.user);
+        const stored = getStoredProfile(session.user.id, session.user);
+        setProfile({
+          name: stored.name || derived.name,
+          email: session.user.email || stored.email || derived.email
+        });
+      } else {
+        setProfile({ name: 'Guest User', email: 'guest@testly.ai' });
       }
       setAuthLoading(false);
     });
 
     const subscription = subscribeToAuthChanges((event, newSession) => {
       setSession(newSession);
-      setAuthUser(newSession?.user || null);
-      if (newSession?.user) {
-        setProfile(prev => ({
-          name: newSession.user.user_metadata?.full_name || prev.name,
-          email: newSession.user.email || prev.email
-        }));
+      const user = newSession?.user || null;
+      setAuthUser(user);
+      if (user) {
+        const derived = getDerivedUserInfo(user);
+        const stored = getStoredProfile(user.id, user);
+        setProfile({
+          name: stored.name || derived.name,
+          email: user.email || stored.email || derived.email
+        });
       }
       if (event === 'SIGNED_OUT') {
         setIsGuestMode(false);
+        setProfile({ name: 'Guest User', email: 'guest@testly.ai' });
       }
     });
 
@@ -139,7 +160,7 @@ export default function App() {
   // Check backend health & fetch initial data
   useEffect(() => {
     checkBackendHealth();
-    fetchProfile();
+    fetchProfile(authUser);
     fetchHistory(authUser?.id);
     fetchWebsites(authUser?.id);
 
@@ -152,6 +173,7 @@ export default function App() {
     setSession(null);
     setAuthUser(null);
     setIsGuestMode(false);
+    setProfile({ name: 'Guest User', email: 'guest@testly.ai' });
   };
 
 
@@ -175,26 +197,40 @@ export default function App() {
     }
   }, [liveLogs]);
 
-  const fetchProfile = async () => {
+  const fetchProfile = async (currentUser = authUser) => {
+    if (currentUser) {
+      const derived = getDerivedUserInfo(currentUser);
+      const stored = getStoredProfile(currentUser.id, currentUser);
+      const resolved = {
+        name: stored.name || derived.name,
+        email: currentUser.email || stored.email || derived.email
+      };
+      setProfile(resolved);
+      saveStoredProfile(resolved, currentUser.id);
+      return;
+    }
+
     try {
       const r = await fetch(`${API_BASE}/profile`);
       if (r.ok) {
         const data = await r.json();
-        const clean = {
-          name: data.name || 'Kavya',
-          email: data.email || 'kavya@gmail.com'
-        };
-        setProfile(clean);
-        saveStoredProfile(clean);
-        setBackendConnected(true);
-        return;
+        if (data && (data.name || data.email)) {
+          const clean = {
+            name: data.name || 'Guest User',
+            email: data.email || 'guest@testly.ai'
+          };
+          setProfile(clean);
+          saveStoredProfile(clean, 'guest');
+          setBackendConnected(true);
+          return;
+        }
       }
     } catch {}
-    // Fallback to local persistent storage
-    const stored = getStoredProfile();
+
+    const stored = getStoredProfile('guest');
     setProfile({
-      name: stored.name || 'Kavya',
-      email: stored.email || 'kavya@gmail.com'
+      name: stored.name || 'Guest User',
+      email: stored.email || 'guest@testly.ai'
     });
     setBackendConnected(true);
   };
@@ -406,8 +442,16 @@ export default function App() {
       name: (profile.name || '').trim(),
       email: (profile.email || '').trim()
     };
-    saveStoredProfile(cleanProfile);
+    saveStoredProfile(cleanProfile, authUser?.id);
     if (authUser) {
+      try {
+        await updateUserProfile({
+          fullName: cleanProfile.name,
+          email: cleanProfile.email && cleanProfile.email !== authUser.email ? cleanProfile.email : undefined
+        });
+      } catch (err) {
+        console.warn('Could not update Supabase auth metadata:', err);
+      }
       setAuthUser(prev => ({
         ...prev,
         email: cleanProfile.email || prev?.email,
@@ -426,7 +470,6 @@ export default function App() {
     } catch {}
     setProfileSuccessMsg(true);
     setTimeout(() => setProfileSuccessMsg(false), 3000);
-    fetchProfile();
   };
 
   const handleCopyEmail = (emailToCopy) => {
@@ -437,7 +480,11 @@ export default function App() {
     }).catch(() => {});
   };
 
-  const userDisplayName = authUser?.user_metadata?.full_name || profile.name || 'User';
+  const userDisplayName = authUser?.user_metadata?.full_name 
+    || authUser?.user_metadata?.name 
+    || (profile.name && profile.name.trim() ? profile.name.trim() : '')
+    || (authUser?.email ? authUser.email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : '') 
+    || 'User';
   const userDisplayEmail = authUser?.email || profile.email || 'user@example.com';
   const userInitials = (userDisplayName || 'User')
     .trim()
@@ -675,13 +722,18 @@ export default function App() {
           const u = user || newSession?.user;
           setAuthUser(u);
           if (u) {
-            setProfile(prev => ({
-              name: u.user_metadata?.full_name || prev.name,
-              email: u.email || prev.email
-            }));
+            const derived = getDerivedUserInfo(u);
+            const stored = getStoredProfile(u.id, u);
+            setProfile({
+              name: stored.name || derived.name,
+              email: u.email || stored.email || derived.email
+            });
           }
         }}
-        onContinueAsGuest={() => setIsGuestMode(true)}
+        onContinueAsGuest={() => {
+          setIsGuestMode(true);
+          setProfile({ name: 'Guest User', email: 'guest@testly.ai' });
+        }}
       />
     );
   }
@@ -750,7 +802,7 @@ export default function App() {
           <div className="user-info" style={{ width: '100%' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3px' }}>
               <span className="user-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {authUser?.user_metadata?.full_name || profile.name}
+                {userDisplayName}
               </span>
               {session ? (
                 <span style={{ fontSize: '10px', background: 'var(--primary)', color: '#fff', padding: '1px 6px', borderRadius: '4px', fontWeight: 'bold' }}>
@@ -763,7 +815,7 @@ export default function App() {
               )}
             </div>
             <span className="user-role" style={{ fontSize: '11px', opacity: 0.8, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {authUser?.email || profile.email}
+              {userDisplayEmail}
             </span>
 
             <button
@@ -1603,12 +1655,12 @@ export default function App() {
                   </div>
 
                   <h2 className="profile-user-name" id="profile-display-name">
-                    {profile.name || userDisplayName}
+                    {userDisplayName}
                   </h2>
 
                   <div className="profile-email-badge" id="profile-display-email-badge">
                     <IconMail size={14} />
-                    <span>{profile.email || userDisplayEmail}</span>
+                    <span>{userDisplayEmail}</span>
                   </div>
 
                   <div className="profile-tags-row">
@@ -1642,7 +1694,7 @@ export default function App() {
                       </div>
                       <div className="profile-info-content">
                         <span className="profile-info-label">User Name</span>
-                        <span className="profile-info-value">{profile.name || userDisplayName}</span>
+                        <span className="profile-info-value">{userDisplayName}</span>
                         <span className="profile-info-hint">Displayed across test reports and audit logs</span>
                       </div>
                     </div>
@@ -1653,7 +1705,7 @@ export default function App() {
                       </div>
                       <div className="profile-info-content">
                         <span className="profile-info-label">Email ID</span>
-                        <span className="profile-info-value">{profile.email || userDisplayEmail}</span>
+                        <span className="profile-info-value">{userDisplayEmail}</span>
                         <span className="profile-info-hint">Used for account login and notifications</span>
                       </div>
                     </div>
