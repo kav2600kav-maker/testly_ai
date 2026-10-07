@@ -1,13 +1,7 @@
 {
     "profile": {
         "name": "Kavya",
-        "email": "kavya@gmail.com",
-        "role": "Tester",
-        "avatar": "",
-        "gemini_api_key": "",
-        "default_browser": "Chrome",
-        "screenshot_quality": "High",
-        "notifications_enabled": true
+        "email": "kavya@gmail.com"
     },
     "history": [
         {

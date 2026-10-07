@@ -17,13 +17,7 @@ else:
 DEFAULT_DB = {
     "profile": {
         "name": "Kavya",
-        "email": "kavya@gmail.com",
-        "role": "Lead Developer / Tester",
-        "avatar": "",
-        "gemini_api_key": os.environ.get("GEMINI_API_KEY", ""),
-        "default_browser": "Chrome",
-        "screenshot_quality": "High",
-        "notifications_enabled": True
+        "email": "kavya@gmail.com"
     },
     "history": [],
     "websites": []

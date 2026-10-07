@@ -64,11 +64,12 @@ const analyzeDomain = (url) => {
 
 // Generate test cases via Gemini AI if key exists, else smart generator
 const generateTestCases = async (plan, browser, testingTypes, geminiApiKey) => {
-  if (geminiApiKey && geminiApiKey.trim().length > 10) {
+  const activeKey = (geminiApiKey || import.meta.env.VITE_GEMINI_API_KEY || "").trim();
+  if (activeKey && activeKey.length > 10) {
     try {
       const prompt = `You are Testly AI Test Generator Agent. Given URL: ${plan.url}, Site Type: ${plan.site_type}, Browser: ${browser}, Categories: ${testingTypes.join(', ')}. Generate exactly 5 test cases in valid JSON array format. Each item must have: "id" (e.g. TC-001), "name", "description", "category", "steps" (array of strings), "expected_result", "browser". Return ONLY the JSON array without markdown formatting.`;
       
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey.trim()}`, {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${activeKey}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -208,11 +209,11 @@ export const runAutonomousAgentPipeline = async ({
   // Step 2: Generator Agent
   onStatus('generating');
   await sleep(700);
-  log(`[Generator Agent] Synthesizing tailored test suites for ${browser}...`);
-  if (geminiApiKey) {
+  const effectiveKey = (geminiApiKey || import.meta.env.VITE_GEMINI_API_KEY || "").trim();
+  if (effectiveKey) {
     log(`[Generator Agent] Connecting to Google Gemini API for deep contextual test generation...`);
   }
-  const testCases = await generateTestCases(plan, browser, testingTypes, geminiApiKey);
+  const testCases = await generateTestCases(plan, browser, testingTypes, effectiveKey);
   await sleep(800);
   log(`[Generator Agent] Successfully generated ${testCases.length} comprehensive test cases.`);
 

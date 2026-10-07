@@ -46,7 +46,8 @@ import {
   IconCpu,
   IconUser,
   IconMail,
-  IconCopy
+  IconCopy,
+  IconSettings
 } from './components/Icons';
 
 const API_BASE = import.meta.env.VITE_API_BASE || (import.meta.env.DEV ? 'http://localhost:8000/api' : '/api');
@@ -66,12 +67,7 @@ export default function App() {
   const [websites, setWebsites] = useState([]);
   const [profile, setProfile] = useState({
     name: 'Kavya',
-    email: 'kavya@gmail.com',
-    role: 'Lead Developer / Tester',
-    gemini_api_key: '',
-    default_browser: 'Chrome',
-    screenshot_quality: 'High',
-    notifications_enabled: true
+    email: 'kavya@gmail.com'
   });
   const [profileSuccessMsg, setProfileSuccessMsg] = useState(false);
   const [copiedEmail, setCopiedEmail] = useState(false);
@@ -113,10 +109,8 @@ export default function App() {
         setAuthUser(session.user);
         if (session.user) {
           setProfile(prev => ({
-            ...prev,
             name: session.user.user_metadata?.full_name || prev.name,
-            email: session.user.email || prev.email,
-            role: session.user.user_metadata?.role || prev.role
+            email: session.user.email || prev.email
           }));
         }
       }
@@ -128,10 +122,8 @@ export default function App() {
       setAuthUser(newSession?.user || null);
       if (newSession?.user) {
         setProfile(prev => ({
-          ...prev,
           name: newSession.user.user_metadata?.full_name || prev.name,
-          email: newSession.user.email || prev.email,
-          role: newSession.user.user_metadata?.role || prev.role
+          email: newSession.user.email || prev.email
         }));
       }
       if (event === 'SIGNED_OUT') {
@@ -188,14 +180,22 @@ export default function App() {
       const r = await fetch(`${API_BASE}/profile`);
       if (r.ok) {
         const data = await r.json();
-        setProfile(data);
-        saveStoredProfile(data);
+        const clean = {
+          name: data.name || 'Kavya',
+          email: data.email || 'kavya@gmail.com'
+        };
+        setProfile(clean);
+        saveStoredProfile(clean);
         setBackendConnected(true);
         return;
       }
     } catch {}
     // Fallback to local persistent storage
-    setProfile(getStoredProfile());
+    const stored = getStoredProfile();
+    setProfile({
+      name: stored.name || 'Kavya',
+      email: stored.email || 'kavya@gmail.com'
+    });
     setBackendConnected(true);
   };
 
@@ -382,7 +382,7 @@ export default function App() {
           url: formattedUrl,
           browser: selectedBrowser,
           testingTypes,
-          geminiApiKey: profile.gemini_api_key,
+          geminiApiKey: import.meta.env.VITE_GEMINI_API_KEY || '',
           userId: authUser?.id,
           onLog: (newLog) => setLiveLogs(prev => [...prev, newLog]),
           onStatus: (st) => setLiveStatus(st)
@@ -402,14 +402,18 @@ export default function App() {
 
   const handleUpdateProfile = async (e) => {
     e?.preventDefault();
-    saveStoredProfile(profile);
+    const cleanProfile = {
+      name: (profile.name || '').trim(),
+      email: (profile.email || '').trim()
+    };
+    saveStoredProfile(cleanProfile);
     if (authUser) {
       setAuthUser(prev => ({
         ...prev,
-        email: profile.email || prev?.email,
+        email: cleanProfile.email || prev?.email,
         user_metadata: {
           ...prev?.user_metadata,
-          full_name: profile.name
+          full_name: cleanProfile.name
         }
       }));
     }
@@ -417,7 +421,7 @@ export default function App() {
       await fetch(`${API_BASE}/profile`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(profile)
+        body: JSON.stringify(cleanProfile)
       });
     } catch {}
     setProfileSuccessMsg(true);
@@ -672,10 +676,8 @@ export default function App() {
           setAuthUser(u);
           if (u) {
             setProfile(prev => ({
-              ...prev,
               name: u.user_metadata?.full_name || prev.name,
-              email: u.email || prev.email,
-              role: u.user_metadata?.role || prev.role
+              email: u.email || prev.email
             }));
           }
         }}
@@ -739,8 +741,8 @@ export default function App() {
             className={`menu-item ${activeTab === 'profile' ? 'active' : ''}`}
             onClick={() => setActiveTab('profile')}
           >
-            <IconUser size={16} />
-            <span>Profile</span>
+            <IconSettings size={16} />
+            <span>Profile & Settings</span>
           </li>
         </ul>
 
@@ -819,7 +821,7 @@ export default function App() {
               {activeTab === 'testing' && 'Automated Testing Hub'}
               {activeTab === 'history' && 'Audit History Log'}
               {activeTab === 'websites' && 'Tested Websites'}
-              {activeTab === 'profile' && 'User Profile'}
+              {activeTab === 'profile' && 'Profile & Settings'}
             </h1>
             <span className="header-subtitle">
               {activeTab === 'dashboard' && 'Track core metrics and recent runs'}
@@ -1574,15 +1576,20 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 5: PROFILE */}
+          {/* TAB 5: PROFILE & SETTINGS */}
           {activeTab === 'profile' && (
             <div className="profile-redesign-container">
-              <div className="profile-card">
+              {/* Hero Profile & Settings Header Card */}
+              <div className="profile-card profile-hero-card">
                 {/* Hero Cover Header */}
                 <div className="profile-card-cover">
                   <span className="profile-badge-pill">
-                    <IconUser size={13} />
-                    <span>User Account</span>
+                    <IconSettings size={13} />
+                    <span>Profile & Settings</span>
+                  </span>
+                  <span className="profile-badge-pill secondary">
+                    <IconShieldCheck size={13} />
+                    <span>Verified Account</span>
                   </span>
                 </div>
 
@@ -1603,17 +1610,81 @@ export default function App() {
                     <IconMail size={14} />
                     <span>{profile.email || userDisplayEmail}</span>
                   </div>
+
+                  <div className="profile-tags-row">
+                    <span className="profile-mode-tag">
+                      <span className="profile-tag-indicator" />
+                      {session ? 'Supabase Authenticated' : 'Guest / Demo Mode'}
+                    </span>
+                    <span className="profile-mode-tag">
+                      <IconZap size={12} />
+                      <span>Zero-Config AI Engine</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Two-Column Grid: Account Overview & Edit Settings */}
+              <div className="profile-two-column-grid">
+                {/* Column 1: Account Overview */}
+                <div className="profile-sub-card profile-info-card">
+                  <div className="profile-sub-header">
+                    <div className="profile-sub-title-box">
+                      <h3 className="profile-sub-title">Account Overview</h3>
+                      <p className="profile-sub-subtitle">Your active identity details on Testly AI</p>
+                    </div>
+                  </div>
+
+                  <div className="profile-info-tiles">
+                    <div className="profile-info-tile">
+                      <div className="profile-info-icon">
+                        <IconUser size={18} />
+                      </div>
+                      <div className="profile-info-content">
+                        <span className="profile-info-label">User Name</span>
+                        <span className="profile-info-value">{profile.name || userDisplayName}</span>
+                        <span className="profile-info-hint">Displayed across test reports and audit logs</span>
+                      </div>
+                    </div>
+
+                    <div className="profile-info-tile">
+                      <div className="profile-info-icon">
+                        <IconMail size={18} />
+                      </div>
+                      <div className="profile-info-content">
+                        <span className="profile-info-label">Email ID</span>
+                        <span className="profile-info-value">{profile.email || userDisplayEmail}</span>
+                        <span className="profile-info-hint">Used for account login and notifications</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Security & Zero-Config Note */}
+                  <div className="profile-notice-box">
+                    <div className="profile-notice-icon">
+                      <IconShield size={18} />
+                    </div>
+                    <div className="profile-notice-text">
+                      <strong>Streamlined & Autonomous</strong>
+                      <p>No API keys or complex setups required. Testly AI's autonomous testing pipeline runs automatically in the background.</p>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Profile Form Details - ONLY Name and Email */}
-                <div className="profile-content-body">
-                  <div className="profile-section-divider" />
+                {/* Column 2: Edit Profile & Settings Form */}
+                <div className="profile-sub-card profile-form-card">
+                  <div className="profile-sub-header">
+                    <div className="profile-sub-title-box">
+                      <h3 className="profile-sub-title">Edit Details</h3>
+                      <p className="profile-sub-subtitle">Update your user name and email address</p>
+                    </div>
+                  </div>
 
-                  <form onSubmit={handleUpdateProfile} id="profile-edit-form">
+                  <form onSubmit={handleUpdateProfile} id="profile-edit-form" className="profile-form">
                     <div className="profile-field-group">
                       <label className="profile-field-label" htmlFor="profile-input-name">
                         <IconUser size={15} />
-                        <span>Name</span>
+                        <span>User Name</span>
                       </label>
                       <div className="profile-input-wrapper">
                         <input
@@ -1626,6 +1697,7 @@ export default function App() {
                           required
                         />
                       </div>
+                      <span className="profile-field-hint">Your public identity displayed on generated PDF reports.</span>
                     </div>
 
                     <div className="profile-field-group">
@@ -1662,21 +1734,24 @@ export default function App() {
                           )}
                         </button>
                       </div>
+                      <span className="profile-field-hint">Used for system authentication and PDF report delivery.</span>
                     </div>
 
-                    <button
-                      id="btn-save-profile"
-                      type="submit"
-                      className="profile-submit-btn"
-                    >
-                      <IconCheck size={16} />
-                      <span>Save Changes</span>
-                    </button>
+                    <div className="profile-form-buttons">
+                      <button
+                        id="btn-save-profile"
+                        type="submit"
+                        className="profile-submit-btn"
+                      >
+                        <IconCheck size={16} />
+                        <span>Save Changes</span>
+                      </button>
+                    </div>
 
                     {profileSuccessMsg && (
                       <div className="profile-success-banner" id="profile-success-alert">
                         <IconCheck size={16} />
-                        <span>Profile details saved successfully!</span>
+                        <span>Profile & settings saved successfully!</span>
                       </div>
                     )}
                   </form>

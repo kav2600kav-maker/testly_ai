@@ -2,13 +2,7 @@
 
 const DEFAULT_PROFILE = {
   name: "Kavya",
-  email: "kavya@gmail.com",
-  role: "Tester",
-  avatar: "",
-  gemini_api_key: import.meta.env.VITE_GEMINI_API_KEY || "",
-  default_browser: "Chrome",
-  screenshot_quality: "High",
-  notifications_enabled: true
+  email: "kavya@gmail.com"
 };
 
 const INITIAL_HISTORY = [
@@ -128,19 +122,34 @@ const INITIAL_WEBSITES = [
 export const getStoredProfile = () => {
   try {
     const raw = localStorage.getItem("testly_profile");
-    return raw ? JSON.parse(raw) : DEFAULT_PROFILE;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return {
+        name: parsed.name || DEFAULT_PROFILE.name,
+        email: parsed.email || DEFAULT_PROFILE.email
+      };
+    }
+    return { ...DEFAULT_PROFILE };
   } catch {
-    return DEFAULT_PROFILE;
+    return { ...DEFAULT_PROFILE };
   }
 };
 
 export const saveStoredProfile = (profile) => {
   try {
-    localStorage.setItem("testly_profile", JSON.stringify(profile));
+    const clean = {
+      name: profile?.name || DEFAULT_PROFILE.name,
+      email: profile?.email || DEFAULT_PROFILE.email
+    };
+    localStorage.setItem("testly_profile", JSON.stringify(clean));
+    return clean;
   } catch (e) {
     console.warn("Could not save profile to localStorage:", e);
+    return {
+      name: profile?.name || DEFAULT_PROFILE.name,
+      email: profile?.email || DEFAULT_PROFILE.email
+    };
   }
-  return profile;
 };
 
 export const getStoredHistory = () => {

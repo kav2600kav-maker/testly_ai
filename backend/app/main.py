@@ -203,17 +203,10 @@ class TestRequest(BaseModel):
 class ProfileUpdate(BaseModel):
     name: Optional[str] = None
     email: Optional[str] = None
-    role: Optional[str] = None
-    avatar: Optional[str] = None
-    gemini_api_key: Optional[str] = None
-    default_browser: Optional[str] = None
-    screenshot_quality: Optional[str] = None
-    notifications_enabled: Optional[bool] = None
 
 # Background pipeline execution
 def run_agent_pipeline(task_id: str, url: str, browser: str, testing_types: List[str]):
-    profile = database.get_profile()
-    api_key = profile.get("gemini_api_key", "").strip() or os.environ.get("GEMINI_API_KEY", "").strip() or None
+    api_key = os.environ.get("GEMINI_API_KEY", "").strip() or None
     
     task_state = ACTIVE_TASKS[task_id]
     
