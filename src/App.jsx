@@ -11,14 +11,11 @@ import {
 import {
   getStoredProfile,
   saveStoredProfile,
-  getStoredHistory,
-  getStoredWebsites
+  getStoredHistory
 } from './services/storage';
 import {
   fetchTestHistory,
   saveTestRunToDatabase,
-  fetchTestedWebsites,
-  saveTestedWebsiteToDatabase,
   deleteTestHistoryItem
 } from './services/historyService';
 import { runAutonomousAgentPipeline } from './services/agentEngine';
@@ -79,7 +76,6 @@ export default function App() {
 
   // Dashboard & History States
   const [history, setHistory] = useState([]);
-  const [websites, setWebsites] = useState([]);
   const [profile, setProfile] = useState({
     name: '',
     email: ''
@@ -162,7 +158,6 @@ export default function App() {
     checkBackendHealth();
     fetchProfile(authUser);
     fetchHistory(authUser?.id);
-    fetchWebsites(authUser?.id);
 
     const healthInterval = setInterval(checkBackendHealth, 4000);
     return () => clearInterval(healthInterval);
@@ -259,29 +254,6 @@ export default function App() {
     setHistory(getStoredHistory());
   };
 
-  const fetchWebsites = async (userId = authUser?.id) => {
-    try {
-      const data = await fetchTestedWebsites(userId);
-      if (Array.isArray(data)) {
-        setWebsites(data);
-        return;
-      }
-    } catch (e) {
-      console.warn("fetchTestedWebsites failed, falling back to API/local:", e);
-    }
-
-    try {
-      const r = await fetch(`${API_BASE}/websites`);
-      if (r.ok) {
-        const data = await r.json();
-        if (Array.isArray(data) && data.length > 0) {
-          setWebsites(data);
-          return;
-        }
-      }
-    } catch {}
-    setWebsites(getStoredWebsites());
-  };
 
   const handleDeleteHistoryItem = async (id, e) => {
     if (e) e.stopPropagation();
@@ -330,15 +302,7 @@ export default function App() {
             report_url: data.report_url
           }, authUser?.id);
 
-          await saveTestedWebsiteToDatabase(data.url || testUrl, {
-            title: data.plan?.title || 'Audited Web App',
-            site_type: data.plan?.site_type || 'Modern Web App',
-            technologies: data.plan?.technologies || ['HTML5', 'CSS3'],
-            success_rate: successRate
-          }, authUser?.id);
-
           fetchHistory(authUser?.id);
-          fetchWebsites(authUser?.id);
         } else if (data.status === 'failed') {
           setExecutionState('error');
           setErrorMessage(data.error || "The test execution pipeline encountered a fatal error.");
@@ -428,7 +392,6 @@ export default function App() {
         setActiveBugs(result.bugs);
         setActivePlan(result.plan);
         await fetchHistory(authUser?.id);
-        await fetchWebsites(authUser?.id);
       } catch (agentErr) {
         setExecutionState('error');
         setErrorMessage(`Agent execution error: ${agentErr.message}`);
@@ -503,7 +466,6 @@ export default function App() {
 
   // Filter lists based on search
   const filteredHistory = history.filter(h => h.url.toLowerCase().includes(searchQuery.toLowerCase()));
-  const filteredWebsites = websites.filter(w => w.url.toLowerCase().includes(searchQuery.toLowerCase()));
 
   // Stats calculation
   const totalRuns = history.length;
@@ -511,6 +473,7 @@ export default function App() {
   const avgSuccessRate = totalRuns > 0 
     ? Math.round(history.reduce((sum, h) => sum + h.success_rate, 0) / totalRuns) 
     : 100;
+  const uniqueSites = new Set(history.map(h => h.url).filter(Boolean)).size;
 
   // Carousel Helper
   const failureScreenshots = activeTestCases
@@ -781,14 +744,6 @@ export default function App() {
             <span>Execution History</span>
           </li>
           <li 
-            id="nav-websites"
-            className={`menu-item ${activeTab === 'websites' ? 'active' : ''}`}
-            onClick={() => setActiveTab('websites')}
-          >
-            <IconGlobe size={16} />
-            <span>Website Info</span>
-          </li>
-          <li 
             id="nav-profile"
             className={`menu-item ${activeTab === 'profile' ? 'active' : ''}`}
             onClick={() => setActiveTab('profile')}
@@ -872,14 +827,12 @@ export default function App() {
               {activeTab === 'dashboard' && 'QA Control Dashboard'}
               {activeTab === 'testing' && 'Automated Testing Hub'}
               {activeTab === 'history' && 'Audit History Log'}
-              {activeTab === 'websites' && 'Tested Websites'}
               {activeTab === 'profile' && 'Profile & Settings'}
             </h1>
             <span className="header-subtitle">
               {activeTab === 'dashboard' && 'Track core metrics and recent runs'}
               {activeTab === 'testing' && 'Deploy AI agents to audit a live webpage'}
               {activeTab === 'history' && 'Review generated PDF reports and assertions'}
-              {activeTab === 'websites' && 'Review crawled page metadata and stacks'}
               {activeTab === 'profile' && 'Manage your account name and email address'}
             </span>
           </div>
@@ -936,7 +889,7 @@ export default function App() {
                 id="global-search-bar"
                 type="text" 
                 className="search-bar-input" 
-                placeholder="Search websites or logs..." 
+                placeholder="Search audit history or logs..." 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -972,8 +925,8 @@ export default function App() {
                 </div>
                 <div className="card-panel stat-card">
                   <div className="stat-details">
-                    <span className="stat-label">Sites Tracked</span>
-                    <span className="stat-value">{websites.length}</span>
+                    <span className="stat-label">Sites Audited</span>
+                    <span className="stat-value">{uniqueSites}</span>
                   </div>
                 </div>
               </div>
@@ -1557,78 +1510,7 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 4: WEBSITES INFO */}
-          {activeTab === 'websites' && (
-            <div className="card-panel glow-purple" style={{animation: 'fadeInUp 0.3s'}}>
-              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px'}}>
-                <h3 className="dashboard-panel-title" style={{margin: 0}}>Website Crawl Details</h3>
-                <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-                  <span className="badge passed" style={{fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px'}}>
-                    <IconCloud size={13} />
-                    <span>Supabase Cloud DB</span>
-                  </span>
-                  <button
-                    className="btn-secondary"
-                    style={{padding: '4px 10px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px'}}
-                    onClick={() => fetchWebsites(authUser?.id)}
-                  >
-                    <IconRefresh size={12} />
-                    <span>Refresh</span>
-                  </button>
-                </div>
-              </div>
-              <div className="data-table-wrapper">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>URL Link</th>
-                      <th>Crawled Title</th>
-                      <th>Category</th>
-                      <th>Framework / Tech Stack</th>
-                      <th>Last Audit</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredWebsites.map((web, idx) => {
-                      const techList = web.technologies || web.info?.technologies || ['HTML5', 'CSS3'];
-                      const title = web.title || web.info?.title || 'Audited Web App';
-                      const siteType = web.site_type || web.info?.site_type || 'Landing Page';
-                      const lastTested = web.last_tested || web.timestamp || new Date().toISOString();
-
-                      return (
-                        <tr key={web.id || idx}>
-                          <td style={{fontWeight: '600', color: 'var(--secondary)'}}>{web.url}</td>
-                          <td>{title}</td>
-                          <td>{siteType}</td>
-                          <td>
-                            <div style={{display: 'flex', gap: '6px', flexWrap: 'wrap'}}>
-                              {Array.isArray(techList) && techList.length > 0 ? (
-                                techList.map(t => (
-                                  <span key={t} className="badge pending" style={{fontSize: '10px', padding: '2px 8px'}}>{t}</span>
-                                ))
-                              ) : (
-                                <span className="badge pending" style={{fontSize: '10px', padding: '2px 8px'}}>HTML5 / CSS3</span>
-                              )}
-                            </div>
-                          </td>
-                          <td>{new Date(lastTested).toLocaleString()}</td>
-                        </tr>
-                      );
-                    })}
-                    {filteredWebsites.length === 0 && (
-                      <tr>
-                        <td colSpan="5" style={{textAlign: 'center', color: 'var(--text-muted)', padding: '24px'}}>
-                          No website profiles tracked. Run an audit to log structural metadata.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 5: PROFILE & SETTINGS */}
+          {/* TAB 4: PROFILE & SETTINGS */}
           {activeTab === 'profile' && (
             <div className="profile-redesign-container">
               {/* Hero Profile & Settings Header Card */}
